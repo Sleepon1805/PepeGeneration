@@ -12,13 +12,13 @@ cfg.source_data = '/home/sleepon/data/PepeDataset/'
 cfg.dataset = './parsed_data/'
 
 # hparams
-cfg.batch_size = 8
-cfg.image_size = (128, 128)
+cfg.batch_size = 32
+cfg.image_size = (32, 32)
 
 # model params
-cfg.diffusion_steps = 1000
-cfg.init_channels = 32
-cfg.time_channels = 64
+cfg.diffusion_steps = 500
+cfg.init_channels = 64
+cfg.time_channels = 128
 
 # training params
 cfg.dataset_split = [0.8, 0.2]

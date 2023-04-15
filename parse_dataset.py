@@ -27,7 +27,6 @@ class DataParser:
             # read image as ndarray
             image = cv2.imread(self.source_data_path + filename)
             image = cv2.resize(image, dsize=cfg.image_size, interpolation=cv2.INTER_CUBIC)
-            image = image
 
             # save image
             self.db.write_lmdb_sample(sample_num, image)

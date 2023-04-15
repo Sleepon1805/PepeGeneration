@@ -46,6 +46,7 @@ class PepeDataset(Dataset):
         if self.augmentations:
             image = self.augmentations(image)
         image = transforms.ToTensor()(image)
+        image = 2 * image - 1
         return image
 
 

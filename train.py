@@ -1,4 +1,7 @@
+import os
 import torch
+import torchvision
+import torchvision.transforms as T
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -24,11 +27,10 @@ if __name__ == '__main__':
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, num_workers=12)
 
     # init model
-    model = PepeGenerator(config=cfg)
+    model = PepeGenerator(cfg.image_size[0] * cfg.image_size[1], cfg.diffusion_steps, 3)
 
     # load checkpoint
     checkpoint = None
-    # checkpoint = utils.load_lightning_checkpoint(version='last')
 
     # train the model
     callbacks = [
@@ -43,7 +45,7 @@ if __name__ == '__main__':
     ]
 
     trainer = pl.Trainer(max_epochs=20,
-                         accelerator='gpu',
+                         accelerator='auto',
                          devices=1,
                          callbacks=callbacks,
                          log_every_n_steps=1,
@@ -51,6 +53,7 @@ if __name__ == '__main__':
                          )
 
     trainer.fit(model=model,
-                train_dataloaders=train_loader, val_dataloaders=val_loader,
+                train_dataloaders=train_loader,
+                val_dataloaders=val_loader,
                 ckpt_path=checkpoint,  # to start from checkpoint
                 )
