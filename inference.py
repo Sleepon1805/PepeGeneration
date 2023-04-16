@@ -20,15 +20,16 @@ def stack_samples(samples, stack_dim):
 
 
 if __name__ == '__main__':
-    version = 0
+    version = 1
     checkpoint = glob.glob(f'./lightning_logs/version_{version}/checkpoints/*.ckpt')[0]
-    folder_to_save = f'./lightning_logs/version_{version}/'
+    folder_to_save = f'./lightning_logs/version_{version}/results/'
+    if not os.path.exists(folder_to_save):
+        os.makedirs(folder_to_save)
 
     gif_shape = [3, 3]
     sample_batch_size = gif_shape[0] * gif_shape[1]
     n_hold_final = 10
-    model = PepeGenerator.load_from_checkpoint(checkpoint, in_size=cfg.image_size[0] * cfg.image_size[1],
-                                               t_range=cfg.diffusion_steps, img_depth=3)
+    model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg)
 
     # Generate samples from denoising process
     gen_samples = []
@@ -53,7 +54,11 @@ if __name__ == '__main__':
     plt.imsave(folder_to_save + '/final_pred.png', gen_samples[-1].numpy())
 
     # save distribution of color values
-    plt.hist(gen_samples[-1].flatten().numpy(), bins=100)
+    values = gen_samples[-1].reshape((-1, 3))
+    fig, axs = plt.subplots(1, 3)
+    axs[0].hist(values[:, 0], bins=100, color='red')
+    axs[1].hist(values[:, 1], bins=100, color='green')
+    axs[2].hist(values[:, 2], bins=100, color='blue')
     plt.savefig(folder_to_save + 'distribution.png')
 
     # save gif

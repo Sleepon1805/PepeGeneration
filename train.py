@@ -3,7 +3,7 @@ import torch
 import torchvision
 import torchvision.transforms as T
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.profilers import AdvancedProfiler
 
@@ -17,6 +17,8 @@ if __name__ == '__main__':
     # tensorboard --logdir ./lightning_logs/
     torch.set_float32_matmul_precision('high')
 
+    debug = False
+
     # dataset
     dataset_name = 'celeba'
     dataset = PepeDataset(dataset_name, config=cfg, augments=None)
@@ -24,14 +26,18 @@ if __name__ == '__main__':
                                                        generator=torch.Generator().manual_seed(42))
 
     # dataloader
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=cfg.batch_size, pin_memory=True, num_workers=12)
-    val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, pin_memory=True, num_workers=12)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=cfg.batch_size, pin_memory=True,
+                                               num_workers=0 if debug else 12)
+    val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, pin_memory=True,
+                                             num_workers=0 if debug else 12)
 
     # init model
-    model = PepeGenerator(cfg.image_size[0] * cfg.image_size[1], cfg.diffusion_steps, 3)
+    model = PepeGenerator(cfg)
 
-    # load checkpoint
+    # load pretrained model
     checkpoint = None
+    if checkpoint is not None:
+        model = PepeGenerator.load_from_checkpoint(checkpoint, cfg)
 
     # train the model
     callbacks = [
@@ -43,10 +49,12 @@ if __name__ == '__main__':
         EarlyStopping(monitor='val_loss', min_delta=0.0, patience=5, mode='min'),
         # checkpointing
         ModelCheckpoint(save_top_k=1, monitor='val_loss', filename='{epoch:02d}-{val_loss:.4f}'),
+        # deeper model summary
+        ModelSummary(max_depth=2),
     ]
 
     trainer = pl.Trainer(max_epochs=20,
-                         accelerator='auto',
+                         accelerator='cpu' if debug else 'auto',
                          callbacks=callbacks,
                          log_every_n_steps=1,
                          # profiler=AdvancedProfiler(filename='profiler'),
@@ -55,5 +63,4 @@ if __name__ == '__main__':
     trainer.fit(model=model,
                 train_dataloaders=train_loader,
                 val_dataloaders=val_loader,
-                ckpt_path=checkpoint,  # to start from checkpoint
                 )
