@@ -1,3 +1,4 @@
+import os.path
 import pickle
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
@@ -11,8 +12,8 @@ from config import cfg
 class PepeDataset(Dataset):
     """ Dogs with watermarks dataset. """
 
-    def __init__(self, config, augments=None):
-        self.config = config
+    def __init__(self, dataset_name: str, config, augments=None):
+        self.path = config.parsed_datasets + dataset_name
         self.augmentations = augments
 
         self._init_database()
@@ -21,7 +22,9 @@ class PepeDataset(Dataset):
         self.decompressor = None
 
     def _init_database(self):
-        self.db = lmdb.open(self.config.dataset, subdir=True, readonly=True, lock=False, readahead=False,
+        assert os.path.exists(self.path)
+
+        self.db = lmdb.open(self.path, subdir=True, readonly=True, lock=False, readahead=False,
                             meminit=False)
         self.decompressor = zstandard.ZstdDecompressor()
 
@@ -51,7 +54,7 @@ class PepeDataset(Dataset):
 
 
 if __name__ == '__main__':
-    dataset = PepeDataset(config=cfg)
+    dataset = PepeDataset(dataset_name='celeba', config=cfg)
     dataloader = DataLoader(dataset, batch_size=cfg.batch_size, num_workers=8)
     for batch in tqdm(dataloader, desc="Testing dataset... "):
         assert batch.shape[1:] == (3, *cfg.image_size), batch.shape

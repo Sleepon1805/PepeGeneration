@@ -10,22 +10,35 @@ from config import cfg
 
 
 class DataParser:
-    def __init__(self, config):
-        assert os.path.exists(config.source_data), \
-            f'Given path for original images {config.source_data} does not exist! Change it in config.py.'
-        if not os.path.exists(config.dataset):
-            os.makedirs(config.dataset)
-        self.source_data_path = config.source_data
-        self.save_dir = config.dataset
+    def __init__(self, config, dataset_name: str):
+        self.source_data_path, self.save_path = self._init_data_paths(config, dataset_name)
+        self.db = LMDBCreator(self.save_path)  # lmdb
 
-        # lmdb
-        self.db = LMDBCreator(config.dataset)
+    @staticmethod
+    def _init_data_paths(config, dataset_name):
+        # source data
+        if dataset_name == 'pepe':
+            source_data_path = config.pepe_data_path
+        elif dataset_name == 'celeba':
+            source_data_path = config.celeba_data_path
+        else:
+            raise ValueError(f"dataset_name must be 'pepe' or 'celeba', got {dataset_name}")
+        assert os.path.exists(source_data_path), \
+            f'Given path for source images {source_data_path} does not exist! Change it in config.py.'
+
+        # parsed data
+        save_path = config.parsed_datasets + dataset_name
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+
+        return source_data_path, save_path
 
     def parse_and_save_dataset(self):
         # init dataset
         for sample_num, filename in enumerate(tqdm(os.listdir(self.source_data_path), desc='Parsing images...')):
             # read image as ndarray
             image = cv2.imread(self.source_data_path + filename)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image = cv2.resize(image, dsize=cfg.image_size, interpolation=cv2.INTER_CUBIC)
 
             # save image
@@ -65,6 +78,11 @@ class LMDBCreator:
 
 
 if __name__ == '__main__':
-    dataparser = DataParser(config=cfg)
-    dataparser.parse_and_save_dataset()
+    dataset_names = [
+        'pepe',
+        'celeba'
+    ]
+    for dataset in dataset_names:
+        dataparser = DataParser(config=cfg, dataset_name=dataset)
+        dataparser.parse_and_save_dataset()
 

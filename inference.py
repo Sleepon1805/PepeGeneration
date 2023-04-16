@@ -1,5 +1,5 @@
 import os
-
+import glob
 import numpy as np
 import torch
 import pytorch_lightning as pl
@@ -11,8 +11,18 @@ from dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from config import cfg
 
+
+def stack_samples(samples, stack_dim):
+    samples = list(torch.split(samples, 1, dim=1))
+    for i in range(len(samples)):
+        samples[i] = samples[i].squeeze(1)
+    return torch.cat(samples, dim=stack_dim)
+
+
 if __name__ == '__main__':
-    checkpoint = '/home/sleepon/repos/PepeGenerator/lightning_logs/version_4/checkpoints/epoch=19-val_loss=0.1493.ckpt'
+    version = 0
+    checkpoint = glob.glob(f'./lightning_logs/version_{version}/checkpoints/*.ckpt')[0]
+    folder_to_save = f'./lightning_logs/version_{version}/'
 
     gif_shape = [3, 3]
     sample_batch_size = gif_shape[0] * gif_shape[1]
@@ -36,25 +46,17 @@ if __name__ == '__main__':
     gen_samples = (gen_samples * 255).type(torch.uint8)
     gen_samples = gen_samples.reshape(-1, gif_shape[0], gif_shape[1], *cfg.image_size, 3)
 
-    for i in range(gen_samples.shape[1]):
-        for j in range(gen_samples.shape[2]):
-            image = gen_samples[-1, i, j].numpy()
-            plt.imshow(image)
-            plt.show()
-
-    def stack_samples(gen_samples, stack_dim):
-        gen_samples = list(torch.split(gen_samples, 1, dim=1))
-        for i in range(len(gen_samples)):
-            gen_samples[i] = gen_samples[i].squeeze(1)
-        return torch.cat(gen_samples, dim=stack_dim)
-
     gen_samples = stack_samples(gen_samples, 2)
     gen_samples = stack_samples(gen_samples, 2)
 
-    imageio.mimsave(
-        "./pred.gif",
-        list(gen_samples),
-        fps=5,
-    )
+    # save resulting pics
+    plt.imsave(folder_to_save + '/final_pred.png', gen_samples[-1].numpy())
+
+    # save distribution of color values
+    plt.hist(gen_samples[-1].flatten().numpy(), bins=100)
+    plt.savefig(folder_to_save + 'distribution.png')
+
+    # save gif
+    imageio.mimsave(folder_to_save + 'pred.gif', list(gen_samples), fps=5)
 
 

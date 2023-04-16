@@ -5,6 +5,7 @@ import torchvision.transforms as T
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.profilers import AdvancedProfiler
 
 from dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
@@ -17,14 +18,14 @@ if __name__ == '__main__':
     torch.set_float32_matmul_precision('high')
 
     # dataset
-    print('Loading datasets...')
-    dataset = PepeDataset(config=cfg, augments=None)
+    dataset_name = 'celeba'
+    dataset = PepeDataset(dataset_name, config=cfg, augments=None)
     train_set, val_set = torch.utils.data.random_split(dataset, cfg.dataset_split,
                                                        generator=torch.Generator().manual_seed(42))
 
     # dataloader
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=cfg.batch_size, num_workers=12)
-    val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, num_workers=12)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=cfg.batch_size, pin_memory=True, num_workers=12)
+    val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, pin_memory=True, num_workers=12)
 
     # init model
     model = PepeGenerator(cfg.image_size[0] * cfg.image_size[1], cfg.diffusion_steps, 3)
@@ -46,10 +47,9 @@ if __name__ == '__main__':
 
     trainer = pl.Trainer(max_epochs=20,
                          accelerator='auto',
-                         devices=1,
                          callbacks=callbacks,
                          log_every_n_steps=1,
-                         # profiler="simple",  # running times
+                         # profiler=AdvancedProfiler(filename='profiler'),
                          )
 
     trainer.fit(model=model,

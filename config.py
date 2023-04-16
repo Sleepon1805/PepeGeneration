@@ -8,15 +8,16 @@ cfg = EasyDict()
 cfg.device = torch.cuda.is_available()
 
 # paths
-cfg.source_data = '/home/sleepon/data/PepeDataset/'
-cfg.dataset = './parsed_data/'
+cfg.pepe_data_path = '/home/sleepon/data/PepeDataset/'
+cfg.celeba_data_path = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
+cfg.parsed_datasets = './parsed_data/'
 
 # hparams
-cfg.batch_size = 32
+cfg.batch_size = 128
 cfg.image_size = (32, 32)
 
 # model params
-cfg.diffusion_steps = 500
+cfg.diffusion_steps = 1000
 cfg.init_channels = 64
 cfg.time_channels = 128
 
