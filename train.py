@@ -17,8 +17,8 @@ if __name__ == '__main__':
     # tensorboard --logdir ./lightning_logs/
     torch.set_float32_matmul_precision('high')
 
-    # set num_workers=0 and device='cpu' to be able to debug properly
-    debug = False
+    # set num_workers=0 to be able to debug properly
+    debug = True
 
     # dataset
     dataset_name = 'celeba'
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     ]
 
     trainer = pl.Trainer(max_epochs=20,
-                         accelerator='cpu' if debug else 'auto',
+                         accelerator='auto',
                          callbacks=callbacks,
                          log_every_n_steps=1,
                          # profiler=AdvancedProfiler(filename='profiler'),

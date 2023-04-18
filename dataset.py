@@ -57,4 +57,4 @@ if __name__ == '__main__':
     dataset = PepeDataset(dataset_name='celeba', config=cfg)
     dataloader = DataLoader(dataset, batch_size=cfg.batch_size, num_workers=8)
     for batch in tqdm(dataloader, desc="Testing dataset... "):
-        assert batch.shape[1:] == (3, *cfg.image_size), batch.shape
+        assert batch.shape[1:] == (3, cfg.image_size, cfg.image_size), batch.shape

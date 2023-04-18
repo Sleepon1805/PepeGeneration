@@ -30,10 +30,11 @@ if __name__ == '__main__':
     sample_batch_size = gif_shape[0] * gif_shape[1]
     n_hold_final = 10
     model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg)
+    model.eval(), model.freeze()
 
     # Generate samples from denoising process
     gen_samples = []
-    x = torch.randn((sample_batch_size, 3, *cfg.image_size))
+    x = torch.randn((sample_batch_size, 3, cfg.image_size, cfg.image_size))
     sample_steps = torch.arange(cfg.diffusion_steps - 1, 0, -1)
     for t in tqdm(sample_steps):
         x = model.denoise_sample(x, t)
@@ -54,7 +55,7 @@ if __name__ == '__main__':
     gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
 
     gen_samples = (gen_samples * 255).type(torch.uint8)
-    gen_samples = gen_samples.reshape(-1, gif_shape[0], gif_shape[1], *cfg.image_size, 3)
+    gen_samples = gen_samples.reshape(-1, gif_shape[0], gif_shape[1], cfg.image_size, cfg.image_size, 3)
 
     gen_samples = stack_samples(gen_samples, 2)
     gen_samples = stack_samples(gen_samples, 2)

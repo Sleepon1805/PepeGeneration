@@ -6,6 +6,7 @@ import numpy as np
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+from pytorch_lightning import LightningModule
 
 from config import cfg
 from model.utils import (
@@ -19,7 +20,7 @@ from model.utils import (
 )
 
 
-class UNetModel(nn.Module):
+class UNetModel(LightningModule):
     """
     https://github.com/openai/improved-diffusion/blob/e94489283bb876ac1477d5dd7709bbbd2d9902ce/improved_diffusion/unet.py
 
@@ -46,9 +47,9 @@ class UNetModel(nn.Module):
             model_channels=64,
             out_channels=3,
             num_res_blocks=2,
-            attention_resolutions=(cfg.image_size[0] // 16, cfg.image_size[0] // 8),
+            attention_resolutions=(cfg.image_size // 16, cfg.image_size // 8),
             dropout=0,
-            channel_mult=(1, 2, 4, 8) if cfg.image_size[0] == 64 else (1, 1, 2, 2),
+            channel_mult=(1, 2, 4, 8) if cfg.image_size == 64 else (1, 1, 2, 2),
             conv_resample=True,
             dims=2,
             num_heads=1,

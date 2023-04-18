@@ -5,8 +5,6 @@ from easydict import EasyDict
 
 cfg = EasyDict()
 
-cfg.device = torch.cuda.is_available()
-
 # paths
 cfg.pepe_data_path = '/home/sleepon/data/PepeDataset/'
 cfg.celeba_data_path = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
@@ -14,7 +12,12 @@ cfg.parsed_datasets = './parsed_data/'
 
 # hparams
 cfg.batch_size = 64
-cfg.image_size = (64, 64)
+cfg.image_size = 64  # size of image NxN
+cfg.lr = 1e-4  # learning rate
+
+# gaussian noise hparams
+cfg.beta_min = 1e-4
+cfg.beta_max = 0.02
 
 # model params
 cfg.diffusion_steps = 1000
