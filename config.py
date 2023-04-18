@@ -13,8 +13,8 @@ cfg.celeba_data_path = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align
 cfg.parsed_datasets = './parsed_data/'
 
 # hparams
-cfg.batch_size = 128
-cfg.image_size = (32, 32)
+cfg.batch_size = 64
+cfg.image_size = (64, 64)
 
 # model params
 cfg.diffusion_steps = 1000

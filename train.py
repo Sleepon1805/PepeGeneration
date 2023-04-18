@@ -17,6 +17,7 @@ if __name__ == '__main__':
     # tensorboard --logdir ./lightning_logs/
     torch.set_float32_matmul_precision('high')
 
+    # set num_workers=0 and device='cpu' to be able to debug properly
     debug = False
 
     # dataset
@@ -36,8 +37,6 @@ if __name__ == '__main__':
 
     # load pretrained model
     checkpoint = None
-    if checkpoint is not None:
-        model = PepeGenerator.load_from_checkpoint(checkpoint, cfg)
 
     # train the model
     callbacks = [
@@ -63,4 +62,5 @@ if __name__ == '__main__':
     trainer.fit(model=model,
                 train_dataloaders=train_loader,
                 val_dataloaders=val_loader,
+                ckpt_path=checkpoint
                 )

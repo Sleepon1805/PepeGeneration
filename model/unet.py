@@ -43,7 +43,7 @@ class UNetModel(nn.Module):
     def __init__(
             self,
             in_channels=3,
-            model_channels=128,
+            model_channels=64,
             out_channels=3,
             num_res_blocks=2,
             attention_resolutions=(cfg.image_size[0] // 16, cfg.image_size[0] // 8),

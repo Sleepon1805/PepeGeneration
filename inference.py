@@ -20,13 +20,13 @@ def stack_samples(samples, stack_dim):
 
 
 if __name__ == '__main__':
-    version = 1
+    version = 2
     checkpoint = glob.glob(f'./lightning_logs/version_{version}/checkpoints/*.ckpt')[0]
     folder_to_save = f'./lightning_logs/version_{version}/results/'
     if not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)
 
-    gif_shape = [3, 3]
+    gif_shape = [4, 4]
     sample_batch_size = gif_shape[0] * gif_shape[1]
     n_hold_final = 10
     model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg)
@@ -41,6 +41,15 @@ if __name__ == '__main__':
             gen_samples.append(x)
     for _ in range(n_hold_final):
         gen_samples.append(x)
+
+    # save distribution of color values
+    values = gen_samples[-1].moveaxis(2, -1).reshape((-1, 3))
+    fig, axs = plt.subplots(1, 3, sharey='all')
+    axs[0].hist(values[:, 0], bins=100, color='red')
+    axs[1].hist(values[:, 1], bins=100, color='green')
+    axs[2].hist(values[:, 2], bins=100, color='blue')
+    plt.savefig(folder_to_save + 'distribution.png')
+
     gen_samples = torch.stack(gen_samples, dim=0).moveaxis(2, 4).squeeze(-1)
     gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
 
@@ -52,14 +61,6 @@ if __name__ == '__main__':
 
     # save resulting pics
     plt.imsave(folder_to_save + '/final_pred.png', gen_samples[-1].numpy())
-
-    # save distribution of color values
-    values = gen_samples[-1].reshape((-1, 3))
-    fig, axs = plt.subplots(1, 3)
-    axs[0].hist(values[:, 0], bins=100, color='red')
-    axs[1].hist(values[:, 1], bins=100, color='green')
-    axs[2].hist(values[:, 2], bins=100, color='blue')
-    plt.savefig(folder_to_save + 'distribution.png')
 
     # save gif
     imageio.mimsave(folder_to_save + 'pred.gif', list(gen_samples), fps=5)
