@@ -11,7 +11,6 @@ from config import cfg
 
 if __name__ == '__main__':
     # don't forget to override HSA_OVERRIDE_GFX_VERSION=10.3.0 as environment variable (for radeon rx 6700xt)
-    # tensorboard --logdir ./lightning_logs/
     torch.set_float32_matmul_precision('high')
 
     # set num_workers=0 to be able to debug properly
@@ -37,16 +36,11 @@ if __name__ == '__main__':
 
     # train the model
     callbacks = [
-        # progression bar
-        pl.callbacks.RichProgressBar(),
-        # accelerator usage
-        # pl.callbacks.DeviceStatsMonitor(),
-        # early stopping
-        EarlyStopping(monitor='val_loss', min_delta=0.0, patience=5, mode='min'),
-        # checkpointing
-        ModelCheckpoint(save_top_k=1, monitor='val_loss', filename='{epoch:02d}-{val_loss:.4f}'),
-        # deeper model summary
-        ModelSummary(max_depth=2),
+        pl.callbacks.RichProgressBar(),  # progression bar
+        # pl.callbacks.DeviceStatsMonitor(),  # accelerator usage
+        EarlyStopping(monitor='val_loss', min_delta=0.0, patience=5, mode='min'),  # early stopping
+        ModelCheckpoint(save_top_k=1, monitor='val_loss', filename='{epoch:02d}-{val_loss:.4f}'),  # checkpointing
+        ModelSummary(max_depth=2),  # deeper model summary
     ]
 
     trainer = pl.Trainer(max_epochs=20,

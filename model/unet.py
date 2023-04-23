@@ -1,100 +1,78 @@
 from pytorch_lightning import LightningModule
 
-from config import cfg
 from model.modules import *
 
 
 class UNetModel(LightningModule):
-    """
-    https://github.com/openai/improved-diffusion/blob/e94489283bb876ac1477d5dd7709bbbd2d9902ce/improved_diffusion/unet.py
-
-    The full UNet model with attention and timestep embedding.
-    :param model_channels: base channel count for the model.
-    :param num_res_blocks: number of residual blocks per downsample.
-    :param dropout: the dropout probability.
-    :param channel_mult: channel multiplier for each level of the UNet.
-    :param conv_resample: if True, use learned convolutions for upsampling and
-        downsampling.
-    :param num_heads: the number of attention heads in each attention layer.
-    """
-
-    def __init__(
-            self,
-            model_channels=64,
-            num_res_blocks=2,
-            dropout=0,
-            channel_mult=(1, 2, 4, 8),
-            conv_resample=True,
-            num_heads=1,
-    ):
+    def __init__(self, config):
         super().__init__()
-        self.model_channels = model_channels
-        self.num_res_blocks = num_res_blocks
-        self.dropout = dropout
-        self.channel_mult = channel_mult
-        self.conv_resample = conv_resample
-        self.num_heads = num_heads
+        self.init_channels = config.init_channels
+        self.channel_mult = config.channel_mult
+        self.conv_resample = config.conv_resample
+        self.num_heads = config.num_heads
+        self.dropout = config.dropout
 
         self.in_channels = 3
+        self.model_channels = [mult * self.init_channels for mult in self.channel_mult]
         self.out_channels = 3
-        self.time_embed_dim = self.model_channels * 4
+        self.time_embed_dim = self.init_channels * 4
 
-        self.time_embed = TimeEmbedding(self.model_channels, self.time_embed_dim)
+        self.time_embed = TimeEmbedding(self.init_channels, self.time_embed_dim)
 
         # downsample layers
-        self.init_conv = nn.Conv2d(self.in_channels, self.model_channels, 3, padding=1)
+        self.init_conv = nn.Conv2d(self.in_channels, self.init_channels, 3, padding=1)
 
         self.downsample_0 = DownsampleLayer(
-            self.model_channels, self.time_embed_dim, self.channel_mult[0] * self.model_channels,
+            self.init_channels, self.time_embed_dim, self.model_channels[0],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=False, use_downsample=True,
         )
         self.downsample_1 = DownsampleLayer(
-            self.channel_mult[0] * self.model_channels, self.time_embed_dim, self.channel_mult[1] * self.model_channels,
+            self.model_channels[0], self.time_embed_dim, self.model_channels[1],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=False, use_downsample=True,
         )
         self.downsample_2 = DownsampleLayer(
-            self.channel_mult[1] * self.model_channels, self.time_embed_dim, self.channel_mult[2] * self.model_channels,
+            self.model_channels[1], self.time_embed_dim, self.model_channels[2],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=True, use_downsample=True,
         )
         self.downsample_3 = DownsampleLayer(
-            self.channel_mult[2] * self.model_channels, self.time_embed_dim, self.channel_mult[3] * self.model_channels,
+            self.model_channels[2], self.time_embed_dim, self.model_channels[3],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=True, use_downsample=False,
         )
 
         # bottom of pyramid
-        self.bottom_block = PyramidBottomLayer(self.channel_mult[3] * self.model_channels, self.time_embed_dim,
+        self.bottom_block = PyramidBottomLayer(self.model_channels[3], self.time_embed_dim,
                                                self.dropout, self.num_heads)
 
         # upsample layers
         self.upsample_3 = UpsampleLayer(
-            self.channel_mult[3] * self.model_channels, self.time_embed_dim, self.channel_mult[3] * self.model_channels,
+            self.model_channels[3], self.time_embed_dim, self.model_channels[3],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=True, use_upsample=False,
         )
         self.upsample_2 = UpsampleLayer(
-            self.channel_mult[3] * self.model_channels, self.time_embed_dim, self.channel_mult[2] * self.model_channels,
+            self.model_channels[3], self.time_embed_dim, self.model_channels[2],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=True, use_upsample=True,
         )
         self.upsample_1 = UpsampleLayer(
-            self.channel_mult[2] * self.model_channels, self.time_embed_dim, self.channel_mult[1] * self.model_channels,
+            self.model_channels[2], self.time_embed_dim, self.model_channels[1],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=False, use_upsample=True,
         )
         self.upsample_0 = UpsampleLayer(
-            self.channel_mult[1] * self.model_channels, self.time_embed_dim, self.channel_mult[0] * self.model_channels,
+            self.model_channels[1], self.time_embed_dim, self.model_channels[0],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=False, use_upsample=False,
+            use_attention=False, use_upsample=True,
         )
 
         self.out = nn.Sequential(
-            NormalizationLayer(self.channel_mult[0] * self.model_channels),
+            NormalizationLayer(self.model_channels[0]),
             nn.SiLU(),
-            zero_module(nn.Conv2d(self.model_channels, self.out_channels, 3, padding=1)),
+            zero_module(nn.Conv2d(self.init_channels, self.out_channels, 3, padding=1)),
         )
 
     @property
@@ -117,7 +95,7 @@ class UNetModel(LightningModule):
 
         h = x.type(self.inner_dtype)
 
-        h = self.init_conv(h, emb)
+        h = self.init_conv(h)
 
         h = self.downsample_0(h, emb)
         hs.append(h)
@@ -151,7 +129,7 @@ class TimeEmbedding(nn.Module):
         self.time_embedding = SinTimestepEmbedding(model_channels)
         self.linear_0 = nn.Linear(model_channels, time_embed_dim)
         self.silu = nn.SiLU()
-        self.linear_1 = nn.Linear(model_channels, time_embed_dim)
+        self.linear_1 = nn.Linear(time_embed_dim, time_embed_dim)
 
     def forward(self, x):
         x = self.time_embedding(x)
@@ -213,7 +191,7 @@ class PyramidBottomLayer(nn.Module):
 
     def forward(self, x, emb):
         x = self.res_0(x, emb)
-        x = self.attention_0(x)
+        x = self.attention(x)
         x = self.res_1(x, emb)
         return x
 

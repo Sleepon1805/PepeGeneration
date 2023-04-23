@@ -10,12 +10,13 @@ class PepeGenerator(pl.LightningModule):
         super().__init__()
         self.config = config
         self.diffusion = Diffusion(config)
-        self.model = UNetModel()
+        self.model = UNetModel(config)
 
         self.loss_func = torch.nn.MSELoss()
 
-        self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size),\
+        self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
             torch.ones(config.batch_size)
+        self.save_hyperparameters()
 
     def forward(self, x, t):
         return self.model(x, t)
