@@ -39,7 +39,7 @@ class UNetModel(LightningModule):
             num_res_blocks=2,
             attention_resolutions=(cfg.image_size // 16, cfg.image_size // 8),
             dropout=0,
-            channel_mult=(1, 2, 3, 4) if cfg.image_size == 64 else (1, 1, 2, 2),
+            channel_mult=(1, 2, 4, 8) if cfg.image_size == 64 else (1, 1, 2, 2),
             conv_resample=True,
             num_heads=1,
     ):
@@ -146,21 +146,18 @@ class UNetModel(LightningModule):
                 channel_mult[3] * model_channels, num_heads=self.num_heads,
             ),
             ResBlock(
-                channel_mult[3] * model_channels + channel_mult[3] * model_channels,
+                channel_mult[3] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
             ),
             AttentionBlock(
                 channel_mult[3] * model_channels, num_heads=self.num_heads,
             ),
             ResBlock(
-                channel_mult[3] * model_channels + channel_mult[2] * model_channels,
+                channel_mult[3] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
             ),
             AttentionBlock(
                 channel_mult[3] * model_channels, num_heads=self.num_heads,
-            ),
-            Upsample(
-                channel_mult[3] * model_channels, self.conv_resample
             ),
         )
         self.upsample_2 = TimestepEmbedSequential(
@@ -172,14 +169,14 @@ class UNetModel(LightningModule):
                 channel_mult[2] * model_channels, num_heads=self.num_heads,
             ),
             ResBlock(
-                channel_mult[2] * model_channels + channel_mult[2] * model_channels,
+                channel_mult[2] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
             ),
             AttentionBlock(
                 channel_mult[2] * model_channels, num_heads=self.num_heads,
             ),
             ResBlock(
-                channel_mult[2] * model_channels + channel_mult[1] * model_channels,
+                channel_mult[2] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
             ),
             AttentionBlock(
@@ -195,11 +192,11 @@ class UNetModel(LightningModule):
                 time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
             ),
             ResBlock(
-                channel_mult[1] * model_channels + channel_mult[1] * model_channels,
+                channel_mult[1] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
             ),
             ResBlock(
-                channel_mult[1] * model_channels + channel_mult[0] * model_channels,
+                channel_mult[1] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
             ),
             Upsample(
@@ -212,12 +209,15 @@ class UNetModel(LightningModule):
                 time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
             ),
             ResBlock(
-                channel_mult[0] * model_channels + channel_mult[0] * model_channels,
+                channel_mult[0] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
             ),
             ResBlock(
-                channel_mult[0] * model_channels + model_channels,
+                channel_mult[0] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
+            ),
+            Upsample(
+                channel_mult[0] * model_channels, self.conv_resample
             ),
         )
 
@@ -248,7 +248,7 @@ class UNetModel(LightningModule):
         h = x.type(self.inner_dtype)
 
         h = self.init_conv(h, emb)
-        hs.append(h)
+
         h = self.downsample_0(h, emb)
         hs.append(h)
         h = self.downsample_1(h, emb)

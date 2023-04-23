@@ -1,7 +1,4 @@
-import os
 import torch
-import torchvision
-import torchvision.transforms as T
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
