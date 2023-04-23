@@ -64,51 +64,74 @@ class UNetModel(LightningModule):
             nn.Linear(time_embed_dim, time_embed_dim),
         )
 
-        self.input_blocks = nn.Sequential(
-            TimestepEmbedSequential(nn.Conv2d(self.in_channels, model_channels, 3, padding=1))
+        # downsample layers
+        self.init_conv = TimestepEmbedSequential(
+            nn.Conv2d(self.in_channels, model_channels, 3, padding=1)
         )
 
-        input_block_chans = [model_channels]
-        ch = model_channels
-        ds = 1
-        for level, mult in enumerate(channel_mult):
-            for _ in range(num_res_blocks):
-                layers = [
-                    ResBlock(
-                        ch,
-                        time_embed_dim,
-                        dropout,
-                        out_channels=mult * model_channels,
-                    )
-                ]
-                ch = mult * model_channels
-                if ds in attention_resolutions:
-                    layers.append(
-                        AttentionBlock(
-                            ch, num_heads=self.num_heads
-                        )
-                    )
-                self.input_blocks.append(TimestepEmbedSequential(*layers))
-                input_block_chans.append(ch)
-
-            if level != len(channel_mult) - 1:
-                self.input_blocks.append(
-                    TimestepEmbedSequential(Downsample(ch, self.conv_resample))
-                )
-                input_block_chans.append(ch)
-                ds *= 2
-
-        self.middle_block = TimestepEmbedSequential(
+        self.downsample_0 = TimestepEmbedSequential(
             ResBlock(
-                ch,
-                time_embed_dim,
-                dropout,
+                model_channels, time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
             ),
-            AttentionBlock(ch, num_heads=num_heads),
             ResBlock(
-                ch,
-                time_embed_dim,
-                dropout,
+                channel_mult[0] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
+            ),
+            Downsample(
+                channel_mult[0] * model_channels, self.conv_resample,
+            ),
+        )
+        self.downsample_1 = TimestepEmbedSequential(
+            ResBlock(
+                channel_mult[0] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
+            ),
+            ResBlock(
+                channel_mult[1] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
+            ),
+            Downsample(
+                channel_mult[1] * model_channels, self.conv_resample,
+            ),
+        )
+        self.downsample_2 = TimestepEmbedSequential(
+            ResBlock(
+                channel_mult[1] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[2] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[2] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[2] * model_channels, num_heads=self.num_heads,
+            ),
+            Downsample(
+                channel_mult[2] * model_channels, self.conv_resample,
+            ),
+        )
+        self.downsample_3 = TimestepEmbedSequential(
+            ResBlock(
+                channel_mult[2] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[3] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[3] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[3] * model_channels, num_heads=self.num_heads,
+            ),
+        )
+
+        self.bottom_block = TimestepEmbedSequential(
+            ResBlock(
+                channel_mult[3] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[3] * model_channels, num_heads=num_heads
+            ),
+            ResBlock(
+                channel_mult[3] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
             ),
         )
 
@@ -136,8 +159,110 @@ class UNetModel(LightningModule):
                     ds //= 2
                 self.output_blocks.append(TimestepEmbedSequential(*layers))
 
+        self.upsample_0 = TimestepEmbedSequential(
+            ResBlock(
+                channel_mult[3] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[3] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[3] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[3] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[3] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[3] * model_channels, num_heads=self.num_heads,
+            ),
+            Upsample(
+                channel_mult[3] * model_channels, self.conv_resample
+            ),
+        )
+        self.upsample_1 = TimestepEmbedSequential(
+            ResBlock(
+                channel_mult[2] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[2] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[2] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[2] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[2] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[2] * model_channels, num_heads=self.num_heads,
+            ),
+            Upsample(
+                channel_mult[2] * model_channels, self.conv_resample
+            ),
+        )
+        self.upsample_2 = TimestepEmbedSequential(
+            ResBlock(
+                channel_mult[1] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[1] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[1] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[1] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[1] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[1] * model_channels, num_heads=self.num_heads,
+            ),
+            Upsample(
+                channel_mult[1] * model_channels, self.conv_resample
+            ),
+        )
+        self.upsample_3 = TimestepEmbedSequential(
+            ResBlock(
+                channel_mult[0] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[0] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[0] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[0] * model_channels, num_heads=self.num_heads,
+            ),
+            ResBlock(
+                channel_mult[0] * model_channels + input_block_chans.pop(),
+                time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
+            ),
+            AttentionBlock(
+                channel_mult[0] * model_channels, num_heads=self.num_heads,
+            ),
+        )
+
         self.out = nn.Sequential(
-            normalization(ch),
+            normalization(model_channels),
             nn.SiLU(),
             zero_module(nn.Conv2d(model_channels, self.out_channels, 3, padding=1)),
         )
@@ -211,7 +336,7 @@ class TimestepBlock(nn.Module):
         """
 
 
-class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
+class TimestepEmbedSequential(TimestepBlock, nn.Sequential):
     """
     A sequential module that passes timestep embeddings to the children that
     support it as an extra input.
