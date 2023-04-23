@@ -18,7 +18,7 @@ if __name__ == '__main__':
     torch.set_float32_matmul_precision('high')
 
     # set num_workers=0 to be able to debug properly
-    debug = True
+    debug = False
 
     # dataset
     dataset_name = 'celeba'

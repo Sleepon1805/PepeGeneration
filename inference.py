@@ -20,8 +20,9 @@ def stack_samples(samples, stack_dim):
 
 
 if __name__ == '__main__':
-    version = 2
+    version = 3
     checkpoint = glob.glob(f'./lightning_logs/version_{version}/checkpoints/*.ckpt')[0]
+    print(f'Checkpoint is {checkpoint}')
     folder_to_save = f'./lightning_logs/version_{version}/results/'
     if not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)

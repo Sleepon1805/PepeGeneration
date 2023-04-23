@@ -10,13 +10,8 @@ from pytorch_lightning import LightningModule
 
 from config import cfg
 from model.utils import (
-    conv_nd,
-    linear,
-    avg_pool_nd,
     zero_module,
     normalization,
-    timestep_embedding,
-    checkpoint,
 )
 
 
@@ -25,9 +20,7 @@ class UNetModel(LightningModule):
     https://github.com/openai/improved-diffusion/blob/e94489283bb876ac1477d5dd7709bbbd2d9902ce/improved_diffusion/unet.py
 
     The full UNet model with attention and timestep embedding.
-    :param in_channels: channels in the input Tensor.
     :param model_channels: base channel count for the model.
-    :param out_channels: channels in the output Tensor.
     :param num_res_blocks: number of residual blocks per downsample.
     :param attention_resolutions: a collection of downsample rates at which
         attention will take place. May be a set, list, or tuple.
@@ -37,55 +30,44 @@ class UNetModel(LightningModule):
     :param channel_mult: channel multiplier for each level of the UNet.
     :param conv_resample: if True, use learned convolutions for upsampling and
         downsampling.
-    :param dims: determines if the signal is 1D, 2D, or 3D.
     :param num_heads: the number of attention heads in each attention layer.
     """
 
     def __init__(
             self,
-            in_channels=3,
             model_channels=64,
-            out_channels=3,
             num_res_blocks=2,
             attention_resolutions=(cfg.image_size // 16, cfg.image_size // 8),
             dropout=0,
-            channel_mult=(1, 2, 4, 8) if cfg.image_size == 64 else (1, 1, 2, 2),
+            channel_mult=(1, 2, 3, 4) if cfg.image_size == 64 else (1, 1, 2, 2),
             conv_resample=True,
-            dims=2,
             num_heads=1,
-            num_heads_upsample=-1,
-            use_scale_shift_norm=False,
     ):
         super().__init__()
 
-        if num_heads_upsample == -1:
-            num_heads_upsample = num_heads
+        self.in_channels = 3
+        self.out_channels = 3
 
-        self.in_channels = in_channels
         self.model_channels = model_channels
-        self.out_channels = out_channels
         self.num_res_blocks = num_res_blocks
         self.attention_resolutions = attention_resolutions
         self.dropout = dropout
         self.channel_mult = channel_mult
         self.conv_resample = conv_resample
         self.num_heads = num_heads
-        self.num_heads_upsample = num_heads_upsample
 
-        time_embed_dim = model_channels * 4
+        time_embed_dim = self.model_channels * 4
         self.time_embed = nn.Sequential(
-            linear(model_channels, time_embed_dim),
+            SinTimestepEmbedding(self.model_channels),
+            nn.Linear(model_channels, time_embed_dim),
             nn.SiLU(),
-            linear(time_embed_dim, time_embed_dim),
+            nn.Linear(time_embed_dim, time_embed_dim),
         )
 
-        self.input_blocks = nn.ModuleList(
-            [
-                TimestepEmbedSequential(
-                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
-                )
-            ]
+        self.input_blocks = nn.Sequential(
+            TimestepEmbedSequential(nn.Conv2d(self.in_channels, model_channels, 3, padding=1))
         )
+
         input_block_chans = [model_channels]
         ch = model_channels
         ds = 1
@@ -97,22 +79,21 @@ class UNetModel(LightningModule):
                         time_embed_dim,
                         dropout,
                         out_channels=mult * model_channels,
-                        dims=dims,
-                        use_scale_shift_norm=use_scale_shift_norm,
                     )
                 ]
                 ch = mult * model_channels
                 if ds in attention_resolutions:
                     layers.append(
                         AttentionBlock(
-                            ch, num_heads=num_heads
+                            ch, num_heads=self.num_heads
                         )
                     )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
                 input_block_chans.append(ch)
+
             if level != len(channel_mult) - 1:
                 self.input_blocks.append(
-                    TimestepEmbedSequential(Downsample(ch, conv_resample, dims=dims))
+                    TimestepEmbedSequential(Downsample(ch, self.conv_resample))
                 )
                 input_block_chans.append(ch)
                 ds *= 2
@@ -122,16 +103,12 @@ class UNetModel(LightningModule):
                 ch,
                 time_embed_dim,
                 dropout,
-                dims=dims,
-                use_scale_shift_norm=use_scale_shift_norm,
             ),
             AttentionBlock(ch, num_heads=num_heads),
             ResBlock(
                 ch,
                 time_embed_dim,
                 dropout,
-                dims=dims,
-                use_scale_shift_norm=use_scale_shift_norm,
             ),
         )
 
@@ -144,8 +121,6 @@ class UNetModel(LightningModule):
                         time_embed_dim,
                         dropout,
                         out_channels=model_channels * mult,
-                        dims=dims,
-                        use_scale_shift_norm=use_scale_shift_norm,
                     )
                 ]
                 ch = model_channels * mult
@@ -153,18 +128,18 @@ class UNetModel(LightningModule):
                     layers.append(
                         AttentionBlock(
                             ch,
-                            num_heads=num_heads_upsample,
+                            num_heads=self.num_heads,
                         )
                     )
                 if level and i == num_res_blocks:
-                    layers.append(Upsample(ch, conv_resample, dims=dims))
+                    layers.append(Upsample(ch, self.conv_resample))
                     ds //= 2
                 self.output_blocks.append(TimestepEmbedSequential(*layers))
 
         self.out = nn.Sequential(
             normalization(ch),
             nn.SiLU(),
-            zero_module(conv_nd(dims, model_channels, out_channels, 3, padding=1)),
+            zero_module(nn.Conv2d(model_channels, self.out_channels, 3, padding=1)),
         )
 
     @property
@@ -183,7 +158,7 @@ class UNetModel(LightningModule):
         """
 
         hs = []
-        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
+        emb = self.time_embed(timesteps)
 
         h = x.type(self.inner_dtype)
         for module in self.input_blocks:
@@ -208,7 +183,7 @@ class UNetModel(LightningModule):
                  - 'up': a list of hidden state tensors from upsampling.
         """
         hs = []
-        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
+        emb = self.time_embed(timesteps)
         result = dict(down=[], up=[])
         h = x.type(self.inner_dtype)
         for module in self.input_blocks:
@@ -256,26 +231,18 @@ class Upsample(nn.Module):
     An upsampling layer with an optional convolution.
     :param channels: channels in the inputs and outputs.
     :param use_conv: a bool determining if a convolution is applied.
-    :param dims: determines if the signal is 1D, 2D, or 3D. If 3D, then
-                 upsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2):
+    def __init__(self, channels, use_conv):
         super().__init__()
         self.channels = channels
         self.use_conv = use_conv
-        self.dims = dims
         if use_conv:
-            self.conv = conv_nd(dims, channels, channels, 3, padding=1)
+            self.conv = nn.Conv2d(channels, channels, 3, padding=1)
 
     def forward(self, x):
         assert x.shape[1] == self.channels
-        if self.dims == 3:
-            x = F.interpolate(
-                x, (x.shape[2], x.shape[3] * 2, x.shape[4] * 2), mode="nearest"
-            )
-        else:
-            x = F.interpolate(x, scale_factor=2, mode="nearest")
+        x = F.interpolate(x, scale_factor=2, mode="nearest")
         if self.use_conv:
             x = self.conv(x)
         return x
@@ -286,20 +253,16 @@ class Downsample(nn.Module):
     A downsampling layer with an optional convolution.
     :param channels: channels in the inputs and outputs.
     :param use_conv: a bool determining if a convolution is applied.
-    :param dims: determines if the signal is 1D, 2D, or 3D. If 3D, then
-                 downsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2):
+    def __init__(self, channels, use_conv):
         super().__init__()
         self.channels = channels
         self.use_conv = use_conv
-        self.dims = dims
-        stride = 2 if dims != 3 else (1, 2, 2)
         if use_conv:
-            self.op = conv_nd(dims, channels, channels, 3, stride=stride, padding=1)
+            self.op = nn.Conv2d(channels, channels, 3, stride=2, padding=1)
         else:
-            self.op = avg_pool_nd(stride)
+            self.op = nn.AvgPool2d()  # noqa
 
     def forward(self, x):
         assert x.shape[1] == self.channels
@@ -316,7 +279,6 @@ class ResBlock(TimestepBlock):
     :param use_conv: if True and out_channels is specified, use a spatial
         convolution instead of a smaller 1x1 convolution to change the
         channels in the skip connection.
-    :param dims: determines if the signal is 1D, 2D, or 3D.
     """
 
     def __init__(
@@ -326,8 +288,6 @@ class ResBlock(TimestepBlock):
             dropout,
             out_channels=None,
             use_conv=False,
-            use_scale_shift_norm=False,
-            dims=2,
     ):
         super().__init__()
         self.channels = channels
@@ -335,18 +295,17 @@ class ResBlock(TimestepBlock):
         self.dropout = dropout
         self.out_channels = out_channels or channels
         self.use_conv = use_conv
-        self.use_scale_shift_norm = use_scale_shift_norm
 
         self.in_layers = nn.Sequential(
             normalization(channels),
             nn.SiLU(),
-            conv_nd(dims, channels, self.out_channels, 3, padding=1),
+            nn.Conv2d(channels, self.out_channels, 3, padding=1),
         )
         self.emb_layers = nn.Sequential(
             nn.SiLU(),
-            linear(
+            nn.Linear(
                 emb_channels,
-                2 * self.out_channels if use_scale_shift_norm else self.out_channels,
+                self.out_channels,
             ),
         )
         self.out_layers = nn.Sequential(
@@ -354,32 +313,24 @@ class ResBlock(TimestepBlock):
             nn.SiLU(),
             nn.Dropout(p=dropout),
             zero_module(
-                conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)
+                nn.Conv2d(self.out_channels, self.out_channels, 3, padding=1)
             ),
         )
 
         if self.out_channels == channels:
             self.skip_connection = nn.Identity()
         elif use_conv:
-            self.skip_connection = conv_nd(
-                dims, channels, self.out_channels, 3, padding=1
-            )
+            self.skip_connection = nn.Conv2d(channels, self.out_channels, 3, padding=1)
         else:
-            self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
+            self.skip_connection = nn.Conv2d(channels, self.out_channels, 1)
 
     def forward(self, x, emb):
         h = self.in_layers(x)
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
-        if self.use_scale_shift_norm:
-            out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
-            scale, shift = th.chunk(emb_out, 2, dim=1)
-            h = out_norm(h) * (1 + scale) + shift
-            h = out_rest(h)
-        else:
-            h = h + emb_out
-            h = self.out_layers(h)
+        h = h + emb_out
+        h = self.out_layers(h)
         return self.skip_connection(x) + h
 
 
@@ -396,9 +347,9 @@ class AttentionBlock(nn.Module):
         self.num_heads = num_heads
 
         self.norm = normalization(channels)
-        self.qkv = conv_nd(1, channels, channels * 3, 1)
+        self.qkv = nn.Conv1d(channels, channels * 3, 1)
         self.attention = QKVAttention()
-        self.proj_out = zero_module(conv_nd(1, channels, channels, 1))
+        self.proj_out = zero_module(nn.Conv1d(channels, channels, 1))
 
     def forward(self, x):
         b, c, *spatial = x.shape
@@ -431,22 +382,31 @@ class QKVAttention(nn.Module):
         weight = th.softmax(weight.float(), dim=-1).type(weight.dtype)
         return th.einsum("bts,bcs->bct", weight, v)
 
-    @staticmethod
-    def count_flops(model, _x, y):
+
+class SinTimestepEmbedding(nn.Module):
+    def __init__(self, dim, max_period=10000):
         """
-        A counter for the `thop` package to count the operations in an
-        attention operation.
-        Meant to be used like:
-            macs, params = thop.profile(
-                model,
-                inputs=(inputs, timestamps),
-                custom_ops={QKVAttention: QKVAttention.count_flops},
-            )
+        Create sinusoidal timestep embeddings.
+
+        :param dim: the dimension of the output.
+        :param max_period: controls the minimum frequency of the embeddings.
         """
-        b, c, *spatial = y[0].shape
-        num_spatial = int(np.prod(spatial))
-        # We perform two matmuls with the same number of ops.
-        # The first computes the weight matrix, the second computes
-        # the combination of the value vectors.
-        matmul_ops = 2 * b * (num_spatial ** 2) * c
-        model.total_ops += th.DoubleTensor([matmul_ops])
+        super().__init__()
+        self.dim = dim
+        self.max_period = max_period
+
+    def forward(self, timesteps):
+        """
+        :param timesteps: a 1-D Tensor of N indices, one per batch element.
+                          These may be fractional.
+        :return: an [N x dim] Tensor of positional embeddings.
+        """
+        half = self.dim // 2
+        freqs = th.exp(
+            -math.log(self.max_period) * th.arange(start=0, end=half, dtype=th.float32, device=timesteps.device) / half
+        )
+        args = timesteps[:, None].float() * freqs[None]
+        embedding = th.cat([th.cos(args), th.sin(args)], dim=-1)
+        if self.dim % 2:
+            embedding = th.cat([embedding, th.zeros_like(embedding[:, :1])], dim=-1)
+        return embedding
