@@ -123,6 +123,7 @@ class UNetModel(LightningModule):
             ),
         )
 
+        # bottom of pyramid
         self.bottom_block = TimestepEmbedSequential(
             ResBlock(
                 channel_mult[3] * model_channels, time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
@@ -135,47 +136,24 @@ class UNetModel(LightningModule):
             ),
         )
 
-        self.output_blocks = nn.ModuleList([])
-        for level, mult in list(enumerate(channel_mult))[::-1]:
-            for i in range(num_res_blocks + 1):
-                layers = [
-                    ResBlock(
-                        ch + input_block_chans.pop(),
-                        time_embed_dim,
-                        dropout,
-                        out_channels=model_channels * mult,
-                    )
-                ]
-                ch = model_channels * mult
-                if ds in attention_resolutions:
-                    layers.append(
-                        AttentionBlock(
-                            ch,
-                            num_heads=self.num_heads,
-                        )
-                    )
-                if level and i == num_res_blocks:
-                    layers.append(Upsample(ch, self.conv_resample))
-                    ds //= 2
-                self.output_blocks.append(TimestepEmbedSequential(*layers))
-
-        self.upsample_0 = TimestepEmbedSequential(
+        # upsample layers
+        self.upsample_3 = TimestepEmbedSequential(
             ResBlock(
-                channel_mult[3] * model_channels + input_block_chans.pop(),
+                channel_mult[3] * model_channels + channel_mult[3] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
             ),
             AttentionBlock(
                 channel_mult[3] * model_channels, num_heads=self.num_heads,
             ),
             ResBlock(
-                channel_mult[3] * model_channels + input_block_chans.pop(),
+                channel_mult[3] * model_channels + channel_mult[3] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
             ),
             AttentionBlock(
                 channel_mult[3] * model_channels, num_heads=self.num_heads,
             ),
             ResBlock(
-                channel_mult[3] * model_channels + input_block_chans.pop(),
+                channel_mult[3] * model_channels + channel_mult[2] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[3] * model_channels,
             ),
             AttentionBlock(
@@ -185,23 +163,23 @@ class UNetModel(LightningModule):
                 channel_mult[3] * model_channels, self.conv_resample
             ),
         )
-        self.upsample_1 = TimestepEmbedSequential(
+        self.upsample_2 = TimestepEmbedSequential(
             ResBlock(
-                channel_mult[2] * model_channels + input_block_chans.pop(),
+                channel_mult[3] * model_channels + channel_mult[2] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
             ),
             AttentionBlock(
                 channel_mult[2] * model_channels, num_heads=self.num_heads,
             ),
             ResBlock(
-                channel_mult[2] * model_channels + input_block_chans.pop(),
+                channel_mult[2] * model_channels + channel_mult[2] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
             ),
             AttentionBlock(
                 channel_mult[2] * model_channels, num_heads=self.num_heads,
             ),
             ResBlock(
-                channel_mult[2] * model_channels + input_block_chans.pop(),
+                channel_mult[2] * model_channels + channel_mult[1] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[2] * model_channels,
             ),
             AttentionBlock(
@@ -211,53 +189,35 @@ class UNetModel(LightningModule):
                 channel_mult[2] * model_channels, self.conv_resample
             ),
         )
-        self.upsample_2 = TimestepEmbedSequential(
+        self.upsample_1 = TimestepEmbedSequential(
             ResBlock(
-                channel_mult[1] * model_channels + input_block_chans.pop(),
+                channel_mult[2] * model_channels + channel_mult[1] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
             ),
-            AttentionBlock(
-                channel_mult[1] * model_channels, num_heads=self.num_heads,
-            ),
             ResBlock(
-                channel_mult[1] * model_channels + input_block_chans.pop(),
+                channel_mult[1] * model_channels + channel_mult[1] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
             ),
-            AttentionBlock(
-                channel_mult[1] * model_channels, num_heads=self.num_heads,
-            ),
             ResBlock(
-                channel_mult[1] * model_channels + input_block_chans.pop(),
+                channel_mult[1] * model_channels + channel_mult[0] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[1] * model_channels,
-            ),
-            AttentionBlock(
-                channel_mult[1] * model_channels, num_heads=self.num_heads,
             ),
             Upsample(
                 channel_mult[1] * model_channels, self.conv_resample
             ),
         )
-        self.upsample_3 = TimestepEmbedSequential(
+        self.upsample_0 = TimestepEmbedSequential(
             ResBlock(
-                channel_mult[0] * model_channels + input_block_chans.pop(),
+                channel_mult[1] * model_channels + channel_mult[0] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
             ),
-            AttentionBlock(
-                channel_mult[0] * model_channels, num_heads=self.num_heads,
-            ),
             ResBlock(
-                channel_mult[0] * model_channels + input_block_chans.pop(),
+                channel_mult[0] * model_channels + channel_mult[0] * model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
             ),
-            AttentionBlock(
-                channel_mult[0] * model_channels, num_heads=self.num_heads,
-            ),
             ResBlock(
-                channel_mult[0] * model_channels + input_block_chans.pop(),
+                channel_mult[0] * model_channels + model_channels,
                 time_embed_dim, dropout, out_channels=channel_mult[0] * model_channels,
-            ),
-            AttentionBlock(
-                channel_mult[0] * model_channels, num_heads=self.num_heads,
             ),
         )
 
@@ -272,7 +232,7 @@ class UNetModel(LightningModule):
         """
         Get the dtype used by the torso of the model.
         """
-        return next(self.input_blocks.parameters()).dtype
+        return next(self.upsample_0.parameters()).dtype
 
     def forward(self, x, timesteps):
         """
@@ -286,15 +246,32 @@ class UNetModel(LightningModule):
         emb = self.time_embed(timesteps)
 
         h = x.type(self.inner_dtype)
-        for module in self.input_blocks:
-            h = module(h, emb)
-            hs.append(h)
-        h = self.middle_block(h, emb)
-        for module in self.output_blocks:
-            cat_in = th.cat([h, hs.pop()], dim=1)
-            h = module(cat_in, emb)
+
+        h = self.init_conv(h, emb)
+        hs.append(h)
+        h = self.downsample_0(h, emb)
+        hs.append(h)
+        h = self.downsample_1(h, emb)
+        hs.append(h)
+        h = self.downsample_2(h, emb)
+        hs.append(h)
+        h = self.downsample_3(h, emb)
+        hs.append(h)
+
+        h = self.bottom_block(h, emb)
+
+        cat_in = th.cat([h, hs.pop()], dim=1)
+        h = self.upsample_3(cat_in, emb)
+        cat_in = th.cat([h, hs.pop()], dim=1)
+        h = self.upsample_2(cat_in, emb)
+        cat_in = th.cat([h, hs.pop()], dim=1)
+        h = self.upsample_1(cat_in, emb)
+        cat_in = th.cat([h, hs.pop()], dim=1)
+        h = self.upsample_0(cat_in, emb)
+
         h = h.type(x.dtype)
-        return self.out(h)
+        out = self.out(h)
+        return out
 
     def get_feature_vectors(self, x, timesteps):
         """
