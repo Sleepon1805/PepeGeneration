@@ -75,13 +75,6 @@ class UNetModel(LightningModule):
             zero_module(nn.Conv2d(self.init_channels, self.out_channels, 3, padding=1)),
         )
 
-    @property
-    def inner_dtype(self):
-        """
-        Get the dtype used by the torso of the model.
-        """
-        return next(self.upsample_0.parameters()).dtype
-
     def forward(self, x, timesteps):
         """
         Apply the model to an input batch.
@@ -93,32 +86,21 @@ class UNetModel(LightningModule):
         hs = []
         emb = self.time_embed(timesteps)
 
-        h = x.type(self.inner_dtype)
+        x = self.init_conv(x)
 
-        h = self.init_conv(h)
+        down_0 = self.downsample_0(x, emb)
+        down_1 = self.downsample_1(down_0, emb)
+        down_2 = self.downsample_2(down_1, emb)
+        down_3 = self.downsample_3(down_2, emb)
 
-        h = self.downsample_0(h, emb)
-        hs.append(h)
-        h = self.downsample_1(h, emb)
-        hs.append(h)
-        h = self.downsample_2(h, emb)
-        hs.append(h)
-        h = self.downsample_3(h, emb)
-        hs.append(h)
+        bottom = self.bottom_block(down_3, emb)
 
-        h = self.bottom_block(h, emb)
+        up_3 = self.upsample_3(bottom, down_3, emb)
+        up_2 = self.upsample_2(up_3, down_2, emb)
+        up_1 = self.upsample_1(up_2, down_1, emb)
+        up_0 = self.upsample_0(up_1, down_0, emb)
 
-        cat_in = th.cat([h, hs.pop()], dim=1)
-        h = self.upsample_3(cat_in, emb)
-        cat_in = th.cat([h, hs.pop()], dim=1)
-        h = self.upsample_2(cat_in, emb)
-        cat_in = th.cat([h, hs.pop()], dim=1)
-        h = self.upsample_1(cat_in, emb)
-        cat_in = th.cat([h, hs.pop()], dim=1)
-        h = self.upsample_0(cat_in, emb)
-
-        h = h.type(x.dtype)
-        out = self.out(h)
+        out = self.out(up_0)
         return out
 
 
@@ -227,7 +209,8 @@ class UpsampleLayer(nn.Module):
                 out_channels, conv_resample
             )
 
-    def forward(self, x, emb):
+    def forward(self, x, sc_x, emb):
+        x = th.cat([x, sc_x], dim=1)
         x = self.res_0(x, emb)
         if self.use_attention:
             x = self.attention_0(x)

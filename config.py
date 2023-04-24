@@ -11,7 +11,7 @@ cfg.parsed_datasets = './parsed_data/'
 # hparams
 cfg.batch_size = 64
 cfg.image_size = 64  # size of image NxN
-cfg.lr = 1e-4  # learning rate
+cfg.init_lr = 1e-4  # learning rate on training start
 
 # gaussian noise hparams
 cfg.diffusion_steps = 1000

@@ -1,13 +1,10 @@
 import os
 import glob
-import numpy as np
 import torch
-import pytorch_lightning as pl
 import matplotlib.pyplot as plt
 import imageio
 from tqdm import tqdm
 
-from dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from config import cfg
 
@@ -20,7 +17,7 @@ def stack_samples(samples, stack_dim):
 
 
 if __name__ == '__main__':
-    version = 4
+    version = 6
     checkpoint = glob.glob(f'./lightning_logs/version_{version}/checkpoints/*.ckpt')[0]
     print(f'Loaded checkpoint is {checkpoint}')
     folder_to_save = f'./lightning_logs/version_{version}/results/'
