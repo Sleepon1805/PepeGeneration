@@ -43,7 +43,7 @@ if __name__ == '__main__':
         ModelSummary(max_depth=2),  # deeper model summary
     ]
 
-    trainer = pl.Trainer(max_epochs=20,
+    trainer = pl.Trainer(max_epochs=50,
                          accelerator='auto',
                          callbacks=callbacks,
                          log_every_n_steps=1,

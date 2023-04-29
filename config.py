@@ -1,5 +1,5 @@
 from easydict import EasyDict
-
+import subprocess
 
 cfg = EasyDict()
 
@@ -8,10 +8,14 @@ cfg.pepe_data_path = '/home/sleepon/data/PepeDataset/'
 cfg.celeba_data_path = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
 cfg.parsed_datasets = './parsed_data/'
 
+# git commit hash for logging
+cfg.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+
 # hparams
 cfg.batch_size = 64
 cfg.image_size = 64  # size of image NxN
 cfg.init_lr = 1e-4  # learning rate on training start
+cfg.min_lr = 1e-7  # minimal LR for scheduler
 
 # gaussian noise hparams
 cfg.diffusion_steps = 1000

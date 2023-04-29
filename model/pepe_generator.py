@@ -1,5 +1,6 @@
-import pytorch_lightning as pl
 import torch
+import torchmetrics
+import pytorch_lightning as pl
 
 from model.unet import UNetModel
 from model.diffusion import Diffusion
@@ -13,6 +14,7 @@ class PepeGenerator(pl.LightningModule):
         self.model = UNetModel(config)
 
         self.loss_func = torch.nn.MSELoss()
+        # self.fid = torchmetrics.image.fid.FrechetInceptionDistance(normalize=True)
 
         self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
             torch.ones(config.batch_size)
@@ -23,9 +25,10 @@ class PepeGenerator(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config.init_lr)
-        return optimizer
-        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10, 15], gamma=0.1)
-        # return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=4,
+                                                               min_lr=self.config.min_lr, verbose=True)
+        # return optimizer
+        return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
 
     def training_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)
