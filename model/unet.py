@@ -83,7 +83,6 @@ class UNetModel(LightningModule):
         :return: an [N x C x ...] Tensor of outputs.
         """
 
-        hs = []
         emb = self.time_embed(timesteps)
 
         x = self.init_conv(x)
@@ -150,9 +149,11 @@ class DownsampleLayer(nn.Module):
         x = self.res_0(x, emb)
         if self.use_attention:
             x = self.attention_0(x)
+
         x = self.res_1(x, emb)
         if self.use_attention:
             x = self.attention_1(x)
+
         if self.use_downsample:
             x = self.downsample(x)
         return x
@@ -211,12 +212,15 @@ class UpsampleLayer(nn.Module):
 
     def forward(self, x, sc_x, emb):
         x = th.cat([x, sc_x], dim=1)
+
         x = self.res_0(x, emb)
         if self.use_attention:
             x = self.attention_0(x)
+
         x = self.res_1(x, emb)
         if self.use_attention:
             x = self.attention_1(x)
+
         x = self.res_2(x, emb)
         if self.use_attention:
             x = self.attention_2(x)

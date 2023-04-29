@@ -24,11 +24,20 @@ class PepeGenerator(pl.LightningModule):
         return self.model(x, t)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.config.init_lr)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=4,
-                                                               min_lr=self.config.min_lr, verbose=True)
-        # return optimizer
-        return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
+        if self.config.scheduler_name == 'MultiStepLR':
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                             **self.config.scheduler_params,
+                                                             verbose=True)
+            return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler}}
+        elif self.config.scheduler_name == 'ReduceLROnPlateau':
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                                   **self.config.scheduler_params,
+                                                                   mode='min', verbose=True)
+            return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
+        else:
+            print('No scheduler used')
+            return optimizer
 
     def training_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)

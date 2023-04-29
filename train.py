@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     # train the model
     callbacks = [
-        pl.callbacks.RichProgressBar(),  # progression bar
+        pl.callbacks.RichProgressBar(leave=True),  # progression bar
         # pl.callbacks.DeviceStatsMonitor(),  # accelerator usage
         EarlyStopping(monitor='val_loss', min_delta=0.0, patience=5, mode='min'),  # early stopping
         ModelCheckpoint(save_top_k=1, monitor='val_loss', filename='{epoch:02d}-{val_loss:.4f}'),  # checkpointing
