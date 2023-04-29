@@ -18,7 +18,7 @@ class PepeGenerator(pl.LightningModule):
 
         self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
             torch.ones(config.batch_size)
-        self.save_hyperparameters()
+        self.save_hyperparameters()  # TODO: ignore paths
 
     def forward(self, x, t):
         return self.model(x, t)
@@ -38,6 +38,10 @@ class PepeGenerator(pl.LightningModule):
         else:
             print('No scheduler used')
             return optimizer
+
+    def on_train_start(self) -> None:
+        example_array = (self.example_input_array[0].to(self.device), self.example_input_array[1].to(self.device))
+        self.logger.experiment.add_graph(self.model, example_array)
 
     def training_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)
