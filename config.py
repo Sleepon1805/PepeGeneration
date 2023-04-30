@@ -15,8 +15,8 @@ cfg.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).
 cfg.batch_size = 64
 cfg.image_size = 64  # size of image NxN
 cfg.lr = 1e-4  # learning rate on training start
-cfg.scheduler_name = 'MultiStepLR'
-cfg.scheduler_params = {'milestones': [10, 20, 30, 40], 'gamma': 0.1}
+cfg.scheduler_name = 'None'
+# cfg.scheduler_params = {'milestones': [10, 20, 30, 40], 'gamma': 0.1}
 
 # gaussian noise hparams
 cfg.diffusion_steps = 1000
@@ -24,7 +24,7 @@ cfg.beta_min = 1e-4
 cfg.beta_max = 0.02
 
 # model params
-cfg.init_channels = 128
+cfg.init_channels = 64
 cfg.channel_mult = (1, 2, 4, 8)
 cfg.conv_resample = True
 cfg.num_heads = 1

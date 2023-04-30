@@ -8,7 +8,6 @@ from dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from config import cfg
 
-
 if __name__ == '__main__':
     # don't forget to override HSA_OVERRIDE_GFX_VERSION=10.3.0 as environment variable (for radeon rx 6700xt)
     torch.set_float32_matmul_precision('high')
@@ -43,15 +42,17 @@ if __name__ == '__main__':
         ModelSummary(max_depth=2),  # deeper model summary
     ]
 
-    trainer = pl.Trainer(max_epochs=50,
-                         accelerator='auto',
-                         callbacks=callbacks,
-                         log_every_n_steps=1,
-                         # profiler=AdvancedProfiler(filename='profiler'),
-                         )
+    trainer = pl.Trainer(
+        max_epochs=50,
+        accelerator='auto',
+        callbacks=callbacks,
+        log_every_n_steps=1,
+        # profiler=AdvancedProfiler(filename='profiler'),
+    )
 
-    trainer.fit(model=model,
-                train_dataloaders=train_loader,
-                val_dataloaders=val_loader,
-                ckpt_path=checkpoint
-                )
+    trainer.fit(
+        model=model,
+        train_dataloaders=train_loader,
+        val_dataloaders=val_loader,
+        ckpt_path=checkpoint
+    )

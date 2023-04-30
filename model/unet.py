@@ -40,7 +40,7 @@ class UNetModel(LightningModule):
         self.downsample_3 = DownsampleLayer(
             self.model_channels[2], self.time_embed_dim, self.model_channels[3],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=True, use_downsample=False,
+            use_attention=True, use_downsample=True,
         )
 
         # bottom of pyramid
@@ -49,30 +49,31 @@ class UNetModel(LightningModule):
 
         # upsample layers
         self.upsample_3 = UpsampleLayer(
-            self.model_channels[3], self.time_embed_dim, self.model_channels[3],
+            2 * self.model_channels[3], self.time_embed_dim, self.model_channels[2],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=True, use_upsample=False,
+            use_attention=True, use_upsample=True,
         )
         self.upsample_2 = UpsampleLayer(
-            self.model_channels[3], self.time_embed_dim, self.model_channels[2],
+            2 * self.model_channels[2], self.time_embed_dim, self.model_channels[1],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=True, use_upsample=True,
         )
         self.upsample_1 = UpsampleLayer(
-            self.model_channels[2], self.time_embed_dim, self.model_channels[1],
+            2 * self.model_channels[1], self.time_embed_dim, self.model_channels[0],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=False, use_upsample=True,
         )
         self.upsample_0 = UpsampleLayer(
-            self.model_channels[1], self.time_embed_dim, self.model_channels[0],
+            2 * self.model_channels[0], self.time_embed_dim, self.init_channels,
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=False, use_upsample=True,
         )
 
         self.out = nn.Sequential(
-            NormalizationLayer(self.model_channels[0]),
+            NormalizationLayer(self.init_channels),
             nn.SiLU(),
-            zero_module(nn.Conv2d(self.init_channels, self.out_channels, 3, padding=1)),
+            nn.Conv2d(self.init_channels, self.init_channels // 2, 3, padding=1),
+            nn.Conv2d(self.init_channels // 2, self.out_channels, 3, padding=1),
         )
 
     def forward(self, x, timesteps):
@@ -187,7 +188,7 @@ class UpsampleLayer(nn.Module):
         self.use_upsample = use_upsample
 
         self.res_0 = ResBlock(
-            in_channels + out_channels, hidden_channels, dropout, out_channels,
+            in_channels, hidden_channels, dropout, out_channels,
         )
         self.res_1 = ResBlock(
             out_channels, hidden_channels, dropout, out_channels,
