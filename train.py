@@ -1,15 +1,16 @@
 import torch
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary
+from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary, LearningRateMonitor
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.profilers import AdvancedProfiler
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from config import cfg
 
 if __name__ == '__main__':
-    # don't forget to override HSA_OVERRIDE_GFX_VERSION=10.3.0 as environment variable (for radeon rx 6700xt)
+    # don't forget to override environment variable HSA_OVERRIDE_GFX_VERSION=10.3.0 (for radeon rx 6700xt)
     torch.set_float32_matmul_precision('high')
 
     # set num_workers=0 to be able to debug properly
@@ -38,8 +39,10 @@ if __name__ == '__main__':
         pl.callbacks.RichProgressBar(leave=True),  # progression bar
         # pl.callbacks.DeviceStatsMonitor(),  # accelerator usage
         EarlyStopping(monitor='val_loss', min_delta=0.0, patience=5, mode='min'),  # early stopping
-        ModelCheckpoint(save_top_k=1, monitor='val_loss', filename='{epoch:02d}-{val_loss:.4f}'),  # checkpointing
+        ModelCheckpoint(save_top_k=1, monitor='val_loss', save_last=True,
+                        filename='{epoch:02d}-{val_loss:.4f}'),  # checkpointing
         ModelSummary(max_depth=2),  # deeper model summary
+        LearningRateMonitor(logging_interval='epoch'),  # LR in logger
     ]
 
     trainer = pl.Trainer(
@@ -48,6 +51,7 @@ if __name__ == '__main__':
         callbacks=callbacks,
         log_every_n_steps=1,
         # profiler=AdvancedProfiler(filename='profiler'),
+        # logger=TensorBoardLogger('lightning_logs', name='', version=1),  # to setup version num
     )
 
     trainer.fit(

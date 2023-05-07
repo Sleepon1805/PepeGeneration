@@ -17,8 +17,8 @@ def stack_samples(samples, stack_dim):
 
 
 if __name__ == '__main__':
-    version = 8
-    checkpoint = glob.glob(f'./lightning_logs/version_{version}/checkpoints/*.ckpt')[0]
+    version = 1
+    checkpoint = glob.glob(f'./lightning_logs/version_{version}/checkpoints/epoch=*.ckpt')[-1]
     print(f'Loaded checkpoint is {checkpoint}')
     folder_to_save = f'./lightning_logs/version_{version}/results/'
     if not os.path.exists(folder_to_save):
@@ -45,8 +45,11 @@ if __name__ == '__main__':
     values = gen_samples[-1].moveaxis(2, -1).reshape((-1, 3))
     fig, axs = plt.subplots(1, 3, sharey='all')
     axs[0].hist(values[:, 0], bins=100, color='red')
+    axs[0].set_xticks([-1, 0, 1])
     axs[1].hist(values[:, 1], bins=100, color='green')
+    axs[1].set_xticks([-1, 0, 1])
     axs[2].hist(values[:, 2], bins=100, color='blue')
+    axs[2].set_xticks([-1, 0, 1])
     plt.savefig(folder_to_save + 'distribution.png')
 
     gen_samples = torch.stack(gen_samples, dim=0).moveaxis(2, 4).squeeze(-1)
