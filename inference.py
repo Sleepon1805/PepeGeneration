@@ -17,8 +17,8 @@ def stack_samples(samples, stack_dim):
 
 
 if __name__ == '__main__':
-    version = 1
-    checkpoint = glob.glob(f'./lightning_logs/version_{version}/checkpoints/epoch=*.ckpt')[-1]
+    version = 2
+    checkpoint = sorted(glob.glob(f'./lightning_logs/version_{version}/checkpoints/epoch=*.ckpt'))[-1]
     print(f'Loaded checkpoint is {checkpoint}')
     folder_to_save = f'./lightning_logs/version_{version}/results/'
     if not os.path.exists(folder_to_save):

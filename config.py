@@ -15,8 +15,8 @@ cfg.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).
 cfg.batch_size = 64
 cfg.image_size = 64  # size of image NxN
 cfg.lr = 1e-4  # learning rate on training start
-cfg.scheduler_name = 'None'
-# cfg.scheduler_params = {'milestones': [10, 20, 30, 40], 'gamma': 0.1}
+cfg.scheduler_name = 'ReduceLROnPlateau'
+cfg.scheduler_params = {'factor': 0.1, 'patience': 4, 'min_lr': 1e-6}
 
 # gaussian noise hparams
 cfg.diffusion_steps = 1000

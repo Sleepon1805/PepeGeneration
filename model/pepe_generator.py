@@ -25,19 +25,23 @@ class PepeGenerator(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
-        if self.config.scheduler_name == 'MultiStepLR':
+        if self.config.scheduler_name.lower() in ('no', 'none'):
+            print('No scheduler')
+            return optimizer
+        elif self.config.scheduler_name.lower() == 'multisteplr':
+            print(f'Using MultiStepLR({str(self.config.scheduler_params)})')
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                              **self.config.scheduler_params,
                                                              verbose=True)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler}}
-        elif self.config.scheduler_name == 'ReduceLROnPlateau':
+        elif self.config.scheduler_name.lower() == 'reducelronplateau':
+            print(f'Using ReduceLROnPlateau({str(self.config.scheduler_params)})')
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                    **self.config.scheduler_params,
                                                                    mode='min', verbose=True)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
         else:
-            print('No scheduler used')
-            return optimizer
+            raise NotImplemented(self.config.scheduler_name)
 
     # def on_train_start(self) -> None:
     #     example_array = (self.example_input_array[0].to(self.device), self.example_input_array[1].to(self.device))
