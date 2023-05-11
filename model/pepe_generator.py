@@ -1,5 +1,4 @@
 import torch
-import torchmetrics
 import pytorch_lightning as pl
 
 from model.unet import UNetModel
@@ -14,7 +13,6 @@ class PepeGenerator(pl.LightningModule):
         self.model = UNetModel(config)
 
         self.loss_func = torch.nn.MSELoss()
-        # self.fid = torchmetrics.image.fid.FrechetInceptionDistance(normalize=True)
 
         self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
             torch.ones(config.batch_size)
@@ -42,10 +40,6 @@ class PepeGenerator(pl.LightningModule):
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
         else:
             raise NotImplemented(self.config.scheduler_name)
-
-    # def on_train_start(self) -> None:
-    #     example_array = (self.example_input_array[0].to(self.device), self.example_input_array[1].to(self.device))
-    #     self.logger.experiment.add_graph(self.model, example_array)
 
     def training_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)

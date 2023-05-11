@@ -1,6 +1,6 @@
 import torch
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary, LearningRateMonitor
+from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary, LearningRateMonitor, RichProgressBar
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.profilers import AdvancedProfiler
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -36,8 +36,7 @@ if __name__ == '__main__':
 
     # train the model
     callbacks = [
-        pl.callbacks.RichProgressBar(leave=True),  # progression bar
-        # pl.callbacks.DeviceStatsMonitor(),  # accelerator usage
+        RichProgressBar(leave=True),  # progression bar
         EarlyStopping(monitor='val_loss', min_delta=0.0, patience=5, mode='min'),  # early stopping
         ModelCheckpoint(save_top_k=1, monitor='val_loss', save_last=True,
                         filename='{epoch:02d}-{val_loss:.4f}'),  # checkpointing
