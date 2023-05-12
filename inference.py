@@ -71,6 +71,8 @@ def save_results(gen_samples, folder_to_save, gif_shape):
     # save gif
     imageio.mimsave(folder_to_save + 'pred.gif', list(gen_samples), fps=5)
 
+    print(f'Saved results at {folder_to_save}')
+
 
 def stack_samples(samples, stack_dim):
     samples = list(torch.split(samples, 1, dim=1))
@@ -87,12 +89,13 @@ def calculate_fid_loss(version, num_samples, dataset_name='celeba'):
     train_set, val_set = torch.utils.data.random_split(dataset, cfg.dataset_split,
                                                        generator=torch.Generator().manual_seed(42))
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, pin_memory=True,
-                                             num_workers=12)
+                                             num_workers=0)
     for batch in tqdm(val_loader, desc='Adding real images to FID'):
         fid_metric.update(batch, real=True)
 
     # generated images
     gen_samples = generate_images(version, num_samples)
+    gen_samples = gen_samples.clamp(-1, 1)
     gen_samples = gen_samples[-1].moveaxis(-1, 2).reshape(-1, 3, cfg.image_size, cfg.image_size)
     fid_metric.update(gen_samples, real=False)
 
@@ -105,4 +108,4 @@ if __name__ == '__main__':
     model_version = 4
 
     inference(model_version, gif_shape=(4, 4))
-    # calculate_fid_loss(model_version, num_samples=100, dataset_name='celeba')
+    calculate_fid_loss(model_version, num_samples=20, dataset_name='celeba')

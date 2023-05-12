@@ -40,7 +40,7 @@ class UNetModel(LightningModule):
         self.downsample_3 = DownsampleLayer(
             self.model_channels[2], self.time_embed_dim, self.model_channels[3],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=True, use_downsample=True,
+            use_attention=True, use_downsample=False,
         )
 
         # bottom of pyramid
@@ -51,7 +51,7 @@ class UNetModel(LightningModule):
         self.upsample_3 = UpsampleLayer(
             2 * self.model_channels[3], self.time_embed_dim, self.model_channels[2],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=True, use_upsample=True,
+            use_attention=True, use_upsample=False,
         )
         self.upsample_2 = UpsampleLayer(
             2 * self.model_channels[2], self.time_embed_dim, self.model_channels[1],
