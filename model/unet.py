@@ -30,7 +30,7 @@ class UNetModel(LightningModule):
         self.downsample_1 = DownsampleLayer(
             self.model_channels[0], self.time_embed_dim, self.model_channels[1],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=True, use_downsample=True,
+            use_attention=False, use_downsample=True,
         )
         self.downsample_2 = DownsampleLayer(
             self.model_channels[1], self.time_embed_dim, self.model_channels[2],
@@ -61,7 +61,7 @@ class UNetModel(LightningModule):
         self.upsample_1 = UpsampleLayer(
             2 * self.model_channels[1], self.time_embed_dim, self.model_channels[0],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=True, use_upsample=True,
+            use_attention=False, use_upsample=True,
         )
         self.upsample_0 = UpsampleLayer(
             2 * self.model_channels[0], self.time_embed_dim, self.init_channels,
