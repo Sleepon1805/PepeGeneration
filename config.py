@@ -12,7 +12,7 @@ cfg.parsed_datasets = './parsed_data/'
 cfg.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
 
 # hparams
-cfg.batch_size = 32
+cfg.batch_size = 64
 cfg.image_size = 64  # size of image NxN
 cfg.lr = 1e-4  # learning rate on training start
 cfg.scheduler_name = 'None'
@@ -24,8 +24,8 @@ cfg.beta_min = 1e-4
 cfg.beta_max = 0.02
 
 # model params
-cfg.init_channels = 256
-cfg.channel_mult = (1, 2, 4, 4)
+cfg.init_channels = 128
+cfg.channel_mult = (2, 2, 4, 4)
 cfg.conv_resample = True
 cfg.num_heads = 1
 cfg.dropout = 0
