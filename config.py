@@ -24,8 +24,8 @@ cfg.beta_min = 1e-4
 cfg.beta_max = 0.02
 
 # model params
-cfg.init_channels = 128
-cfg.channel_mult = (1, 2, 4, 4)
+cfg.init_channels = 256
+cfg.channel_mult = (1, 1, 2, 2)
 cfg.conv_resample = True
 cfg.num_heads = 1
 cfg.dropout = 0
