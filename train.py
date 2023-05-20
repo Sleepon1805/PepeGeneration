@@ -5,7 +5,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.profilers import AdvancedProfiler
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from dataset import PepeDataset
+from dataset.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from config import cfg
 

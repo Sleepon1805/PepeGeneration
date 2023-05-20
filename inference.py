@@ -7,7 +7,7 @@ from tqdm import tqdm
 import torchmetrics
 
 from model.pepe_generator import PepeGenerator
-from dataset import PepeDataset
+from dataset.dataset import PepeDataset
 from config import cfg
 
 
