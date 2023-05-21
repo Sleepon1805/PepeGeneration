@@ -14,7 +14,7 @@ cfg.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).
 # hparams
 cfg.batch_size = 64
 cfg.image_size = 64  # size of image NxN
-cfg.lr = 1e-4  # learning rate on training start
+cfg.lr = 1e-5 # learning rate on training start
 cfg.scheduler_name = 'None'
 # cfg.scheduler_params = {'factor': 0.1, 'patience': 4, 'min_lr': 1e-6}
 

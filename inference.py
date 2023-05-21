@@ -105,7 +105,7 @@ def calculate_fid_loss(version, num_samples, dataset_name='celeba'):
 
 
 if __name__ == '__main__':
-    model_version = 4
+    model_version = 12
 
     inference(model_version, gif_shape=(4, 4))
-    calculate_fid_loss(model_version, num_samples=20, dataset_name='celeba')
+    # calculate_fid_loss(model_version, num_samples=20, dataset_name='celeba')
