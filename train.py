@@ -17,7 +17,7 @@ if __name__ == '__main__':
     debug = False
 
     # dataset
-    dataset_name = 'celeba'
+    dataset_name = 'pepe'
     dataset = PepeDataset(dataset_name, config=cfg, augments=None)
     train_set, val_set = torch.utils.data.random_split(dataset, cfg.dataset_split,
                                                        generator=torch.Generator().manual_seed(42))
@@ -32,7 +32,7 @@ if __name__ == '__main__':
     model = PepeGenerator(cfg)
 
     # load pretrained model
-    checkpoint = None
+    checkpoint = '/home/sleepon/repos/PepeGenerator/lightning_logs/version_11/checkpoints/epoch=16-val_loss=0.0242.ckpt'
 
     # train the model
     callbacks = [
