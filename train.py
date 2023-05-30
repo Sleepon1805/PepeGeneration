@@ -28,12 +28,13 @@ if __name__ == '__main__':
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, pin_memory=True,
                                              num_workers=0 if debug else 12)
 
-    # load pretrained model
-    checkpoint = '/home/sleepon/repos/PepeGenerator/lightning_logs/version_11/checkpoints/epoch=16-val_loss=0.0242.ckpt'
-
-    # init model
-    # model = PepeGenerator(cfg)
-    model = PepeGenerator.load_from_checkpoint(checkpoint, cfg)
+    # init or load pretrained model
+    if cfg.pretrained_ckpt is None:
+        model = PepeGenerator(cfg)
+    else:
+        checkpoint = cfg.pretrained_ckpt
+        model = PepeGenerator.load_from_checkpoint(checkpoint, cfg)
+        model.config = cfg
 
     # train the model
     callbacks = [
@@ -58,5 +59,4 @@ if __name__ == '__main__':
         model=model,
         train_dataloaders=train_loader,
         val_dataloaders=val_loader,
-        # ckpt_path=checkpoint
     )
