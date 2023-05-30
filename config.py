@@ -1,12 +1,14 @@
-from easydict import EasyDict
+import os
 import subprocess
+from easydict import EasyDict
 
 cfg = EasyDict()
 
 # paths
 cfg.pepe_data_path = '/home/sleepon/data/PepeDataset/'
 cfg.celeba_data_path = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
-cfg.parsed_datasets = './parsed_data/'
+cfg.twitch_emotes_data_path = '/home/sleepon/data/TwitchPepeDataset/'
+cfg.parsed_datasets = os.path.dirname(__file__) + '/dataset/parsed_data/'
 
 # git commit hash for logging
 cfg.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
