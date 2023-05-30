@@ -8,32 +8,32 @@ import torchmetrics
 
 from model.pepe_generator import PepeGenerator
 from dataset.dataset import PepeDataset
-from config import cfg
+from config import Paths, Config
 
 
-def inference(version, gif_shape=(4, 4)):
+def inference(version, config: Config, gif_shape=(4, 4)):
     folder_to_save = f'./lightning_logs/version_{version}/results/'
     if not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)
 
     # gen_samples: (num_steps, gif_shape[0]*gif_shape[1], cfg.image_size, cfg.image_size, 3)
-    gen_samples = generate_images(version, gif_shape[0]*gif_shape[1])
+    gen_samples = generate_images(version, gif_shape[0]*gif_shape[1], config)
 
-    save_results(gen_samples, folder_to_save, gif_shape)
+    save_results(gen_samples, folder_to_save)
 
 
-def generate_images(version, num_images):
+def generate_images(version, num_images, config: Config):
     checkpoint = sorted(glob.glob(f'./lightning_logs/version_{version}/checkpoints/epoch=*.ckpt'))[-1]
     print(f'Loaded checkpoint is {checkpoint}')
     n_hold_final = 10
 
-    model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg)
+    model = PepeGenerator.load_from_checkpoint(checkpoint, config=config)
     model.eval(), model.freeze()
 
     # Generate samples from denoising process
     gen_samples = []
-    x = torch.randn((num_images, 3, cfg.image_size, cfg.image_size))
-    sample_steps = torch.arange(cfg.diffusion_steps - 1, 0, -1)
+    x = torch.randn((num_images, 3, config.image_size, config.image_size))
+    sample_steps = torch.arange(config.diffusion_steps - 1, 0, -1)
     for t in tqdm(sample_steps, desc='Generating images'):
         x = model.denoise_sample(x, t)
         if t % 50 == 0:
@@ -46,7 +46,7 @@ def generate_images(version, num_images):
     return gen_samples
 
 
-def save_results(gen_samples, folder_to_save, gif_shape):
+def save_results(gen_samples, folder_to_save):
     # save distribution of color values
     values = gen_samples[-1].reshape((-1, 3))
     fig, axs = plt.subplots(1, 3, sharey='all')
@@ -60,10 +60,10 @@ def save_results(gen_samples, folder_to_save, gif_shape):
 
     gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
     gen_samples = (gen_samples * 255).type(torch.uint8)
-    gen_samples = gen_samples.reshape(-1, gif_shape[0], gif_shape[1], cfg.image_size, cfg.image_size, 3)
 
-    gen_samples = stack_samples(gen_samples, 2)
-    gen_samples = stack_samples(gen_samples, 2)
+    # stack images
+    gen_samples = torch.cat(torch.split(gen_samples, 4, dim=1), dim=2)
+    gen_samples = torch.cat(torch.split(gen_samples, 1, dim=1), dim=3).squeeze()
 
     # save resulting pics
     plt.imsave(folder_to_save + '/final_pred.png', gen_samples[-1].numpy())
@@ -74,29 +74,22 @@ def save_results(gen_samples, folder_to_save, gif_shape):
     print(f'Saved results at {folder_to_save}')
 
 
-def stack_samples(samples, stack_dim):
-    samples = list(torch.split(samples, 1, dim=1))
-    for i in range(len(samples)):
-        samples[i] = samples[i].squeeze(1)
-    return torch.cat(samples, dim=stack_dim)
-
-
-def calculate_fid_loss(version, num_samples, dataset_name='celeba'):
+def calculate_fid_loss(version, num_samples, config: Config, dataset_name='celeba'):
     fid_metric = torchmetrics.image.fid.FrechetInceptionDistance(normalize=True)
 
     # real images
-    dataset = PepeDataset(dataset_name, config=cfg, augments=None)
-    train_set, val_set = torch.utils.data.random_split(dataset, cfg.dataset_split,
+    dataset = PepeDataset(dataset_name, paths=Paths(), augments=None)
+    train_set, val_set = torch.utils.data.random_split(dataset, config.dataset_split,
                                                        generator=torch.Generator().manual_seed(42))
-    val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, pin_memory=True,
+    val_loader = torch.utils.data.DataLoader(val_set, batch_size=config.batch_size, pin_memory=True,
                                              num_workers=0)
     for batch in tqdm(val_loader, desc='Adding real images to FID'):
         fid_metric.update(batch, real=True)
 
     # generated images
-    gen_samples = generate_images(version, num_samples)
+    gen_samples = generate_images(version, num_samples, config)
     gen_samples = gen_samples.clamp(-1, 1)
-    gen_samples = gen_samples[-1].moveaxis(-1, 2).reshape(-1, 3, cfg.image_size, cfg.image_size)
+    gen_samples = gen_samples[-1].moveaxis(-1, 2).reshape(-1, 3, config.image_size, config.image_size)
     fid_metric.update(gen_samples, real=False)
 
     fid_loss = fid_metric.compute()
@@ -105,7 +98,7 @@ def calculate_fid_loss(version, num_samples, dataset_name='celeba'):
 
 
 if __name__ == '__main__':
-    model_version = 11
+    model_version = 12
 
-    inference(model_version, gif_shape=(4, 4))
-    # calculate_fid_loss(model_version, num_samples=20, dataset_name='celeba')
+    inference(model_version, config=Config(), gif_shape=(4, 4))
+    # calculate_fid_loss(model_version, num_samples=20, config=Config(), dataset_name='celeba')

@@ -7,18 +7,19 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from dataset.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
-from config import cfg
+from config import Paths, Config
 
 if __name__ == '__main__':
     # don't forget to override environment variable HSA_OVERRIDE_GFX_VERSION=10.3.0 (for radeon rx 6700xt)
     torch.set_float32_matmul_precision('high')
+    cfg = Config()
 
     # set num_workers=0 to be able to debug properly
     debug = False
 
     # dataset
     dataset_name = 'twitch_emotes'
-    dataset = PepeDataset(dataset_name, config=cfg, augments=None)
+    dataset = PepeDataset(dataset_name, paths=Paths(), augments=None)
     train_set, val_set = torch.utils.data.random_split(dataset, cfg.dataset_split,
                                                        generator=torch.Generator().manual_seed(42))
 

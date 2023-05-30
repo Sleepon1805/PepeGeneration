@@ -1,10 +1,11 @@
 from pytorch_lightning import LightningModule
 
 from model.modules import *
+from config import Config
 
 
 class UNetModel(LightningModule):
-    def __init__(self, config):
+    def __init__(self, config: Config):
         super().__init__()
         self.init_channels = config.init_channels
         self.channel_mult = config.channel_mult

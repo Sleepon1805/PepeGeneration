@@ -3,10 +3,11 @@ import pytorch_lightning as pl
 
 from model.unet import UNetModel
 from model.diffusion import Diffusion
+from config import Config
 
 
 class PepeGenerator(pl.LightningModule):
-    def __init__(self, config):
+    def __init__(self, config: Config):
         super().__init__()
         self.config = config
         self.diffusion = Diffusion(config)
@@ -23,7 +24,7 @@ class PepeGenerator(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
-        if self.config.scheduler_name.lower() in ('no', 'none'):
+        if self.config.scheduler_name is None or self.config.scheduler_name.lower() in ('no', 'none'):
             print('No scheduler')
             return optimizer
         elif self.config.scheduler_name.lower() == 'multisteplr':

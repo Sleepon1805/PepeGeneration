@@ -1,38 +1,48 @@
 import os
 import subprocess
-from easydict import EasyDict
+from dataclasses import dataclass
+from typing import Tuple
+from types import MappingProxyType
 
-cfg = EasyDict()
 
-# paths
-cfg.pepe_data_path = '/home/sleepon/data/PepeDataset/'
-cfg.celeba_data_path = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
-cfg.twitch_emotes_data_path = '/home/sleepon/data/TwitchPepeDataset/'
-cfg.parsed_datasets = os.path.dirname(__file__) + '/dataset/parsed_data/'
+@dataclass
+class Paths:
+    pepe_data_path: str = '/home/sleepon/data/PepeDataset/'
+    celeba_data_path: str = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
+    twitch_emotes_data_path: str = '/home/sleepon/data/TwitchPepeDataset/'
+    parsed_datasets: str = os.path.dirname(__file__) + '/dataset/parsed_data/'
 
-# git commit hash for logging
-cfg.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
 
-# hparams
-cfg.batch_size = 64
-cfg.image_size = 64  # size of image NxN
-cfg.lr = 1e-4  # learning rate on training start
-cfg.scheduler_name = 'None'
-# cfg.scheduler_params = {'factor': 0.1, 'patience': 4, 'min_lr': 1e-6}
-cfg.pretrained_ckpt = None
-# cfg.pretrained_ckpt = './lightning_logs/version_11/checkpoints/epoch=16-val_loss=0.0242.ckpt'
+@dataclass
+class Config:
+    # git commit hash for logging
+    git_hash: str = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
 
-# gaussian noise hparams
-cfg.diffusion_steps = 1000
-cfg.beta_min = 1e-4
-cfg.beta_max = 0.02
+    # hparams
+    batch_size: int = 64
+    image_size: int = 64  # size of image NxN
+    lr: float = 1e-4  # learning rate on training start
+    scheduler_name: str = None
+    scheduler_params: MappingProxyType = None
+    # scheduler_params: MappingProxyType = MappingProxyType(
+    #     {'factor': 0.1, 'patience': 4, 'min_lr': 1e-6}
+    # )
 
-# model params
-cfg.init_channels = 256
-cfg.channel_mult = (1, 1, 2, 2)
-cfg.conv_resample = True
-cfg.num_heads = 1
-cfg.dropout = 0
+    # pretrained backbone
+    pretrained_ckpt: str = None
+    # pretrained_ckpt: str = './lightning_logs/version_11/checkpoints/epoch=16-val_loss=0.0242.ckpt'
 
-# training params
-cfg.dataset_split = [0.8, 0.2]
+    # gaussian noise hparams
+    diffusion_steps: int = 1000
+    beta_min: float = 1e-4
+    beta_max: float = 0.02
+
+    # model params
+    init_channels: int = 256
+    channel_mult: Tuple[int, int, int, int] = (1, 1, 2, 2)
+    conv_resample: bool = True
+    num_heads: int = 1
+    dropout: float = 0
+
+    # training params
+    dataset_split: Tuple[float, float] = (0.8, 0.2)

@@ -6,14 +6,14 @@ import lmdb
 import zstandard
 from tqdm import tqdm
 
-from config import cfg
+from config import Paths, Config
 
 
 class PepeDataset(Dataset):
     """ Dogs with watermarks dataset. """
 
-    def __init__(self, dataset_name: str, config, augments=None):
-        self.path = config.parsed_datasets + dataset_name
+    def __init__(self, dataset_name: str, paths: Paths, augments=None):
+        self.path = paths.parsed_datasets + dataset_name
         self.augmentations = augments
 
         self._init_database()
@@ -54,7 +54,8 @@ class PepeDataset(Dataset):
 
 
 if __name__ == '__main__':
-    dataset = PepeDataset(dataset_name='celeba', config=cfg)
+    cfg = Config()
+    dataset = PepeDataset(dataset_name='celeba', paths=Paths())
     dataloader = DataLoader(dataset, batch_size=cfg.batch_size, num_workers=8)
     for batch in tqdm(dataloader, desc="Testing dataset... "):
         assert batch.shape[1:] == (3, cfg.image_size, cfg.image_size), batch.shape

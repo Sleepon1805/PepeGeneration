@@ -1,9 +1,11 @@
 import torch
 from pytorch_lightning import LightningModule
 
+from config import Config
+
 
 class Diffusion(LightningModule):
-    def __init__(self, config):
+    def __init__(self, config: Config):
         super().__init__()
         self.beta_min = config.beta_min
         self.beta_max = config.beta_max

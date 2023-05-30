@@ -5,17 +5,22 @@ from io import BytesIO
 from tqdm import tqdm
 
 
-def collect_twitch_emotes(config):
+def collect_twitch_emotes(data_path):
     """
     API docs: https://www.frankerfacez.com/developers
+    Emote search: https://www.frankerfacez.com/emoticons/?q=peepo&sort=count-desc&days=0
     """
 
-    os.makedirs(config.twitch_emotes_data_path, exist_ok=True)
-    print(f'Saving images as {config.twitch_emotes_data_path}')
+    os.makedirs(data_path, exist_ok=True)
+    print(f'Saving images as {data_path}')
 
     base_url = 'https://api.frankerfacez.com/v1/'
     emoticons_url = base_url + 'emoticons'
-    params = {'page': '1', 'per_page': '200', 'q': 'pepe'}
+    params = {
+        'page': '1',
+        'per_page': '200',
+        'q': 'pepe',
+    }
     req = requests.request('GET', emoticons_url, params=params).json()
     print(f'Pages: {req["_pages"]}, Total: {req["_total"]}')
 
@@ -36,11 +41,11 @@ def collect_twitch_emotes(config):
                 url = emoticon['urls'][size_scale]
                 image_request = requests.request('GET', url)
                 image = Image.open(BytesIO(image_request.content))
-                save_path = config.twitch_emotes_data_path + emoticon['name'] + '.png'
+                save_path = data_path + emoticon['name'] + '.png'
                 if os.path.exists(save_path):
                     c = 2
                     while os.path.exists(save_path):
-                        save_path = config.twitch_emotes_data_path + emoticon['name'] + str(c) + '.png'
+                        save_path = data_path + emoticon['name'] + str(c) + '.png'
                         c += 1
                 image.save(save_path)
             except Exception as e:
