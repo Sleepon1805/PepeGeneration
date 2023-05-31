@@ -19,7 +19,6 @@ def collect_twitch_emotes(data_path):
     params = {
         'page': '1',
         'per_page': '200',
-        'q': 'pepe',
     }
     req = requests.request('GET', emoticons_url, params=params).json()
     print(f'Pages: {req["_pages"]}, Total: {req["_total"]}')
@@ -36,18 +35,33 @@ def collect_twitch_emotes(data_path):
             continue
 
         for emoticon in req['emoticons']:
-            try:
-                size_scale = max(emoticon['urls'].keys(), key=int)
-                url = emoticon['urls'][size_scale]
-                image_request = requests.request('GET', url)
-                image = Image.open(BytesIO(image_request.content))
-                save_path = data_path + emoticon['name'] + '.png'
-                if os.path.exists(save_path):
-                    c = 2
-                    while os.path.exists(save_path):
-                        save_path = data_path + emoticon['name'] + str(c) + '.png'
-                        c += 1
-                image.save(save_path)
-            except Exception as e:
-                print(f'Error for emoticon {emoticon["name"]}, id={emoticon["id"]}, page {page_num}')
-                print(e)
+            if check_emote_name(emoticon['name']):
+                try:
+                    size_scale = max(emoticon['urls'].keys(), key=int)
+                    url = emoticon['urls'][size_scale]
+                    image_request = requests.request('GET', url)
+                    image = Image.open(BytesIO(image_request.content))
+                    save_path = data_path + emoticon['name'] + '.png'
+                    if os.path.exists(save_path):
+                        c = 2
+                        while os.path.exists(save_path):
+                            save_path = data_path + emoticon['name'] + str(c) + '.png'
+                            c += 1
+                    image.save(save_path)
+                except Exception as e:
+                    print(f'Error for emoticon {emoticon["name"]}, id={emoticon["id"]}, page {page_num}')
+                    print(e)
+
+
+def check_emote_name(name: str):
+    name = name.lower()
+    valid_name = any([
+        'pepe' in name,
+        'pepo' in name,
+        'peepo' in name,
+        'monka' in name,
+        name.endswith('ge'),
+        # name.endswith('eg'),
+    ])
+    return valid_name
+
