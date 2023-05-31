@@ -34,7 +34,7 @@ if __name__ == '__main__':
         model = PepeGenerator(cfg)
     else:
         checkpoint = cfg.pretrained_ckpt
-        model = PepeGenerator.load_from_checkpoint(checkpoint, cfg)
+        model = PepeGenerator.load_from_checkpoint(checkpoint, cfg)  # noqa
         model.config = cfg
 
     # train the model
