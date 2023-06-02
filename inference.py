@@ -12,18 +12,23 @@ from dataset.dataset import PepeDataset
 from config import Paths, Config
 
 
-def inference(version, gif_shape=(4, 4)):
+def inference(version, gif_shape=(4, 4), on_gpu: bool = True):
     folder_to_save = f'./lightning_logs/version_{version}/results/'
     if not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)
 
+    if on_gpu and torch.cuda.is_available():
+        device = 'cuda'
+    else:
+        device = 'cpu'
+
     # gen_samples: (num_steps, gif_shape[0]*gif_shape[1], cfg.image_size, cfg.image_size, 3)
-    gen_samples = generate_images(version, gif_shape[0]*gif_shape[1])
+    gen_samples = generate_images(version, gif_shape[0]*gif_shape[1], device=device)
 
     save_results(gen_samples, folder_to_save)
 
 
-def generate_images(version, num_images):
+def generate_images(version, num_images, device: str):
     checkpoint = sorted(glob.glob(f'./lightning_logs/version_{version}/checkpoints/epoch=*.ckpt'))[-1]
     print(f'Loaded checkpoint is {checkpoint}')
 
@@ -35,18 +40,18 @@ def generate_images(version, num_images):
             config = Config()
 
     model = PepeGenerator.load_from_checkpoint(checkpoint, config=config)
-    model.eval(), model.freeze()
+    model.eval(), model.freeze(), model.to(device)
 
     # Generate samples from denoising process
     gen_samples = []
-    x = torch.randn((num_images, 3, config.image_size, config.image_size))
-    sample_steps = torch.arange(config.diffusion_steps - 1, 0, -1)
+    x = torch.randn((num_images, 3, config.image_size, config.image_size), device=device)
+    sample_steps = torch.arange(config.diffusion_steps - 1, 0, -1, device=device)
     for t in tqdm(sample_steps, desc='Generating images'):
         x = model.denoise_sample(x, t)
         if (t % 50 == 0) or (t == sample_steps[-1]):
             gen_samples.append(x)
 
-    gen_samples = torch.stack(gen_samples, dim=0).moveaxis(2, 4).squeeze(-1)
+    gen_samples = torch.stack(gen_samples, dim=0).moveaxis(2, 4).squeeze(-1).cpu()
 
     return gen_samples
 
@@ -60,11 +65,11 @@ def save_results(gen_samples: torch.Tensor, folder_to_save):
         axs[1].hist(values[:, 1], bins=100, histtype='step')
         axs[2].hist(values[:, 2], bins=100, histtype='step')
     axs[0].set_xticks([-1, 0, 1])
-    axs[0].set_title('red')
+    axs[0].set_title('blue')
     axs[1].set_xticks([-1, 0, 1])
     axs[1].set_title('green')
     axs[2].set_xticks([-1, 0, 1])
-    axs[2].set_title('blue')
+    axs[2].set_title('red')
     plt.savefig(folder_to_save + 'distribution.png')
 
     gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
@@ -83,8 +88,13 @@ def save_results(gen_samples: torch.Tensor, folder_to_save):
     print(f'Saved results at {folder_to_save}')
 
 
-def calculate_fid_loss(version, num_samples, config: Config, dataset_name='celeba'):
+def calculate_fid_loss(version, num_samples, config: Config, dataset_name='celeba', on_gpu: bool = True):
     fid_metric = torchmetrics.image.fid.FrechetInceptionDistance(normalize=True)
+
+    if on_gpu and torch.cuda.is_available():
+        device = 'cuda'
+    else:
+        device = 'cpu'
 
     # real images
     dataset = PepeDataset(dataset_name, paths=Paths(), augments=None)
@@ -96,7 +106,7 @@ def calculate_fid_loss(version, num_samples, config: Config, dataset_name='celeb
         fid_metric.update(batch, real=True)
 
     # generated images
-    gen_samples = generate_images(version, num_samples)
+    gen_samples = generate_images(version, num_samples, device=device)
     gen_samples = gen_samples.clamp(-1, 1)
     gen_samples = gen_samples[-1].moveaxis(-1, 2).reshape(-1, 3, config.image_size, config.image_size)
     fid_metric.update(gen_samples, real=False)
@@ -107,7 +117,7 @@ def calculate_fid_loss(version, num_samples, config: Config, dataset_name='celeb
 
 
 if __name__ == '__main__':
-    model_version = 12
+    model_version = 14
 
-    inference(model_version, gif_shape=(4, 4))
+    inference(model_version, gif_shape=(4, 4), on_gpu=True)
     # calculate_fid_loss(model_version, num_samples=20, config=Config(), dataset_name='celeba')
