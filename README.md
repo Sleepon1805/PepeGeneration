@@ -12,6 +12,7 @@ TODOs:
  - try bigger image size or interpolate (upscale) images to bigger size,
  - try different channel_mult ([1, 2, 4, 4], [2, 2, 4, 4], [2, 4, 8, 8]),
  - try lower number of diffusion steps
+ - try flash attention
 
 Modifications:
  - fix distribution during training?

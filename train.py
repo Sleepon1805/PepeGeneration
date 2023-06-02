@@ -34,8 +34,13 @@ if __name__ == '__main__':
         model = PepeGenerator(cfg)
     else:
         checkpoint = cfg.pretrained_ckpt
-        model = PepeGenerator.load_from_checkpoint(checkpoint, cfg)  # noqa
+        model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg)
         model.config = cfg
+
+    # logger
+    logger = TensorBoardLogger('lightning_logs', name='', log_graph=True, default_hp_metric=False,
+                               # version=1,
+                               )
 
     # train the model
     callbacks = [
@@ -53,7 +58,6 @@ if __name__ == '__main__':
         callbacks=callbacks,
         log_every_n_steps=1,
         # profiler=AdvancedProfiler(filename='profiler'),
-        # logger=TensorBoardLogger('lightning_logs', name='', version=1),  # to setup version num
     )
 
     trainer.fit(

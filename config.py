@@ -29,8 +29,8 @@ class Config:
     # )
 
     # pretrained backbone
-    pretrained_ckpt: str = None
-    # pretrained_ckpt: str = './lightning_logs/version_11/checkpoints/epoch=16-val_loss=0.0242.ckpt'
+    # pretrained_ckpt: str = None
+    pretrained_ckpt: str = './lightning_logs/version_11/checkpoints/epoch=16-val_loss=0.0242.ckpt'
 
     # gaussian noise hparams
     diffusion_steps: int = 1000
