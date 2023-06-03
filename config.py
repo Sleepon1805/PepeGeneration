@@ -28,7 +28,8 @@ class Config:
     #     {'factor': 0.1, 'patience': 4, 'min_lr': 1e-6}
     # )
 
-    # pretrained backbone
+    # pretrained backbone and current dataset
+    dataset_name: str = 'twitch_emotes'
     # pretrained_ckpt: str = None
     pretrained_ckpt: str = './lightning_logs/version_11/checkpoints/epoch=16-val_loss=0.0242.ckpt'
 

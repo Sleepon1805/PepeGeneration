@@ -18,8 +18,7 @@ if __name__ == '__main__':
     debug = False
 
     # dataset
-    dataset_name = 'twitch_emotes'
-    dataset = PepeDataset(dataset_name, paths=Paths(), augments=None)
+    dataset = PepeDataset(cfg.dataset_name, paths=Paths(), augments=None)
     train_set, val_set = torch.utils.data.random_split(dataset, cfg.dataset_split,
                                                        generator=torch.Generator().manual_seed(42))
 
