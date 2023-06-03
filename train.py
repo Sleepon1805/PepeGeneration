@@ -1,3 +1,4 @@
+import sys
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary, LearningRateMonitor, RichProgressBar
@@ -15,7 +16,8 @@ if __name__ == '__main__':
     cfg = Config()
 
     # set num_workers=0 to be able to debug properly
-    debug = False
+    debug_mode = hasattr(sys, 'gettrace') and sys.gettrace() is not None
+    print(f'Running in debug mode: {str(debug_mode)}')
 
     # dataset
     dataset = PepeDataset(cfg.dataset_name, paths=Paths(), augments=None)
@@ -24,9 +26,9 @@ if __name__ == '__main__':
 
     # dataloader
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=cfg.batch_size, pin_memory=True,
-                                               num_workers=0 if debug else 12)
+                                               num_workers=0 if debug_mode else 12)
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, pin_memory=True,
-                                             num_workers=0 if debug else 12)
+                                             num_workers=0 if debug_mode else 12)
 
     # init or load pretrained model
     if cfg.pretrained_ckpt is None:
