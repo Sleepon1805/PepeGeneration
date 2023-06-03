@@ -63,16 +63,20 @@ class PepeGenerator(pl.LightningModule):
         # generate some images to log their distribution
         if self.global_step > 0:  # to skip sanity check
             grid_size = (3, 3)
-            progress = self.trainer.progress_bar_callback.progress
-            gen_samples = self.generate_samples(grid_size[0] * grid_size[1], progress)
+            with self.trainer.progress_bar_callback.progress as progress:
+                gen_samples = self.generate_samples(grid_size[0] * grid_size[1], progress)
+
+            # distributions
             self.logger.experiment.add_histogram('generated_distribution/blue', gen_samples[..., 0],
                                                  global_step=self.current_epoch)
             self.logger.experiment.add_histogram('generated_distribution/green', gen_samples[..., 1],
                                                  global_step=self.current_epoch)
             self.logger.experiment.add_histogram('generated_distribution/red', gen_samples[..., 2],
                                                  global_step=self.current_epoch)
+
+            # images
             images = self.generated_samples_to_images(gen_samples, grid_size)
-            self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="CHW")
+            self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
 
     def forward(self, x, t):
         return self.model(x, t)
@@ -89,21 +93,17 @@ class PepeGenerator(pl.LightningModule):
         x = self.diffusion.denoise_images(x, t, predicted_noise)
         return x
 
-    def generate_samples(self, num_images, progress: Progress = None) -> torch.Tensor:
-        if progress is None:
-            progress = Progress()
-        with progress:
-            progress.generating_progress_bar_id = progress.add_task("[white]Generating images",
-                                                                    total=self.config.diffusion_steps-1)
-            # Generate samples from denoising process
-            x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device,
-                            generator=torch.Generator(self.device).manual_seed(137))
-            sample_steps = torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
-            for t in sample_steps:
-                progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
-                progress.refresh()
-                x = self.denoise_sample(x, t)
-            progress.update(progress.generating_progress_bar_id, comleted=0, visible=False)
+    def generate_samples(self, num_images, progress: Progress) -> torch.Tensor:
+        progress.generating_progress_bar_id = progress.add_task("[white]Generating images",
+                                                                total=self.config.diffusion_steps-1)
+        # Generate samples from denoising process
+        x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device,
+                        generator=torch.Generator(self.device).manual_seed(137))
+        sample_steps = torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
+        for t in sample_steps:
+            progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
+            progress.refresh()
+            x = self.denoise_sample(x, t)
         return x
 
     @staticmethod
@@ -117,5 +117,6 @@ class PepeGenerator(pl.LightningModule):
         gen_samples = torch.cat(torch.split(gen_samples, grid_size[0], dim=0), dim=2)
         gen_samples = torch.cat(torch.split(gen_samples, 1, dim=0), dim=3)
         gen_samples = gen_samples.squeeze().cpu().numpy()
+        gen_samples = np.moveaxis(gen_samples, 0, -1)
 
         return gen_samples
