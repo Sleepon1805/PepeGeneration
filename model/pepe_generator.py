@@ -1,5 +1,6 @@
 import torch
 import pytorch_lightning as pl
+from rich.progress import Progress
 
 from model.unet import UNetModel
 from model.diffusion import Diffusion
@@ -17,30 +18,26 @@ class PepeGenerator(pl.LightningModule):
 
         self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
             torch.ones(config.batch_size)
-        self.save_hyperparameters()  # TODO: ignore paths
-
-    def forward(self, x, t):
-        return self.model(x, t)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
-        if self.config.scheduler_name is None or self.config.scheduler_name.lower() in ('no', 'none'):
+        if self.config.scheduler is None or self.config.scheduler['name'].lower() in ('no', 'none'):
             print('No scheduler')
             return optimizer
-        elif self.config.scheduler_name.lower() == 'multisteplr':
-            print(f'Using MultiStepLR({str(self.config.scheduler_params)})')
+        elif self.config.scheduler['name'].lower() == 'multisteplr':
+            print(f'Using MultiStepLR({str(self.config.scheduler["params"])})')
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                             **self.config.scheduler_params,
+                                                             **self.config.scheduler["params"],
                                                              verbose=True)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler}}
-        elif self.config.scheduler_name.lower() == 'reducelronplateau':
-            print(f'Using ReduceLROnPlateau({str(self.config.scheduler_params)})')
+        elif self.config.scheduler['name'].lower() == 'reducelronplateau':
+            print(f'Using ReduceLROnPlateau({str(self.config.scheduler["params"])})')
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                                   **self.config.scheduler_params,
+                                                                   **self.config.scheduler["params"],
                                                                    mode='min', verbose=True)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
         else:
-            raise NotImplemented(self.config.scheduler_name)
+            raise NotImplemented(self.config.scheduler['name'])
 
     def training_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)
@@ -52,6 +49,20 @@ class PepeGenerator(pl.LightningModule):
         self.log("val_loss", loss)
         return
 
+    def on_train_start(self) -> None:
+        # log hparams
+        self.logger.log_hyperparams(params=self.config.__dict__)
+
+    def on_validation_end(self) -> None:
+        # generate some images to log their distribution
+        if self.global_step > 0:  # to skip sanity check
+            progress = self.trainer.progress_bar_callback.progress
+            values = self.generate_images(8, progress)
+            self.logger.experiment.add_histogram('result dist', values, global_step=self.current_epoch)
+
+    def forward(self, x, t):
+        return self.model(x, t)
+
     def _calculate_loss(self, batch):
         ts = self.diffusion.sample_timesteps(batch.shape[0])
         noised_batch, noise = self.diffusion.noise_images(batch, ts)
@@ -62,4 +73,17 @@ class PepeGenerator(pl.LightningModule):
     def denoise_sample(self, x, t):
         predicted_noise = self.forward(x, t.repeat(x.shape[0]))
         x = self.diffusion.denoise_images(x, t, predicted_noise)
+        return x
+
+    def generate_images(self, num_images, progress):
+        progress.generating_progress_bar_id = progress.add_task("[white]Generating images...",
+                                                                total=self.config.diffusion_steps-1)
+        # Generate samples from denoising process
+        x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device)
+        sample_steps = torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
+        for t in sample_steps:
+            progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
+            progress.refresh()
+            x = self.denoise_sample(x, t)
+        progress.update(progress.generating_progress_bar_id, comleted=0, visible=False)
         return x

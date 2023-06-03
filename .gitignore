@@ -2,5 +2,6 @@ __pycache__/
 .idea/
 
 lightning_logs/
+lightning_logs_old/
 parsed_data/
 venv/
