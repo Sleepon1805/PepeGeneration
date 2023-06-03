@@ -56,9 +56,12 @@ class PepeGenerator(pl.LightningModule):
     def on_validation_end(self) -> None:
         # generate some images to log their distribution
         if self.global_step > 0:  # to skip sanity check
+            grid_size = (3, 3)
             progress = self.trainer.progress_bar_callback.progress
-            values = self.generate_images(8, progress)
-            self.logger.experiment.add_histogram('result dist', values, global_step=self.current_epoch)
+            gen_samples = self.generate_samples(grid_size[0] * grid_size[1], progress)
+            self.logger.experiment.add_histogram('result dist', gen_samples, global_step=self.current_epoch)
+            images = self.generated_samples_to_images(gen_samples, grid_size)
+            self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="CHW")
 
     def forward(self, x, t):
         return self.model(x, t)
@@ -75,7 +78,7 @@ class PepeGenerator(pl.LightningModule):
         x = self.diffusion.denoise_images(x, t, predicted_noise)
         return x
 
-    def generate_images(self, num_images, progress):
+    def generate_samples(self, num_images, progress):
         progress.generating_progress_bar_id = progress.add_task("[white]Generating images...",
                                                                 total=self.config.diffusion_steps-1)
         # Generate samples from denoising process
@@ -87,3 +90,17 @@ class PepeGenerator(pl.LightningModule):
             x = self.denoise_sample(x, t)
         progress.update(progress.generating_progress_bar_id, comleted=0, visible=False)
         return x
+
+    @staticmethod
+    def generated_samples_to_images(gen_samples, grid_size=(4, 4)):
+        assert gen_samples.shape[0] == grid_size[0] * grid_size[1]
+
+        gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
+        gen_samples = (gen_samples * 255).type(torch.uint8)
+
+        # stack images
+        gen_samples = torch.cat(torch.split(gen_samples, grid_size[0], dim=0), dim=2)
+        gen_samples = torch.cat(torch.split(gen_samples, 1, dim=0), dim=3)
+        gen_samples = gen_samples.squeeze().cpu().numpy()
+
+        return gen_samples
