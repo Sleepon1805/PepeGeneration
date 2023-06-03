@@ -5,7 +5,7 @@ import torch
 import matplotlib.pyplot as plt
 from rich.progress import track
 import torchmetrics
-import yaml
+import pickle
 
 from model.pepe_generator import PepeGenerator
 from dataset.dataset import PepeDataset
@@ -38,9 +38,9 @@ def load_model_and_config(version, device: str):
     checkpoint = sorted(glob.glob(f'./lightning_logs/version_{version}/checkpoints/epoch=*.ckpt'))[-1]
     print(f'Loaded checkpoint is {checkpoint}')
 
-    with open(f'./lightning_logs/version_{version}/hparams.yaml', "r") as hparams:
+    with open(f'./lightning_logs/version_{version}/config.pkl', 'rb') as config_file:
         try:
-            config = yaml.safe_load(hparams)
+            config = pickle.load(config_file)
         except:
             print('Could not read config from .yaml file. Using default Config().')
             config = Config()
@@ -77,7 +77,7 @@ def calculate_fid_loss(gen_samples, config: Config, device: str):
     # real images
     dataset = PepeDataset(config.dataset_name, paths=Paths(), augments=None)
     train_set, val_set = torch.utils.data.random_split(dataset, config.dataset_split,
-                                                       generator=torch.Generator().manual_seed(42))
+                                                       generator=torch.Generator().manual_seed(137))
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=config.batch_size, pin_memory=True,
                                              num_workers=0, device=device)
     for batch in track(val_loader, description='Adding real images to FID'):
@@ -92,7 +92,7 @@ def calculate_fid_loss(gen_samples, config: Config, device: str):
 
 
 if __name__ == '__main__':
-    model_version = 14
+    model_version = 0
 
     inference(model_version, calculate_fid=False, grid_shape=(4, 4), on_gpu=True)
     # inference(model_version, calculate_fid=True, grid_shape=(8, 8), on_gpu=True)
