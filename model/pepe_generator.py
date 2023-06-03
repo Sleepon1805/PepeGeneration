@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import pytorch_lightning as pl
 from rich.progress import Progress
@@ -78,11 +79,14 @@ class PepeGenerator(pl.LightningModule):
         x = self.diffusion.denoise_images(x, t, predicted_noise)
         return x
 
-    def generate_samples(self, num_images, progress):
+    def generate_samples(self, num_images, progress: Progress = None) -> torch.Tensor:
+        if progress is None:
+            progress = Progress()
         progress.generating_progress_bar_id = progress.add_task("[white]Generating images...",
                                                                 total=self.config.diffusion_steps-1)
         # Generate samples from denoising process
-        x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device)
+        x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device,
+                        generator=torch.Generator().manual_seed(137))
         sample_steps = torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
         for t in sample_steps:
             progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
@@ -92,7 +96,7 @@ class PepeGenerator(pl.LightningModule):
         return x
 
     @staticmethod
-    def generated_samples_to_images(gen_samples, grid_size=(4, 4)):
+    def generated_samples_to_images(gen_samples: torch.Tensor, grid_size=(4, 4)) -> np.ndarray:
         assert gen_samples.shape[0] == grid_size[0] * grid_size[1]
 
         gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
