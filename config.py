@@ -26,6 +26,8 @@ class Config:
     # scheduler: MappingProxyType = MappingProxyType(
     #     {'name': 'ReduceLROnPlateau', 'params': {'factor': 0.1, 'patience': 4, 'min_lr': 1e-6}}
     # )
+    gradient_clip_algorithm: str = "norm"
+    gradient_clip_val: float = 0.5
 
     # pretrained backbone and current dataset
     dataset_name: str = 'celeba'

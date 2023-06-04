@@ -20,7 +20,7 @@ class PepeGenerator(pl.LightningModule):
 
         self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
             torch.ones(config.batch_size)
-        self.save_hyperparameters()
+        self.save_hyperparameters(self.config.__dict__)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
