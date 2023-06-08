@@ -39,8 +39,8 @@ if __name__ == '__main__':
         model.config = cfg
 
     # logger
-    logger = TensorBoardLogger('lightning_logs', name='', log_graph=True, default_hp_metric=False,
-                               # version=1,
+    logger = TensorBoardLogger('lightning_logs', name='', log_graph=False, default_hp_metric=False,
+                               # version=0,
                                )
 
     # train the model
@@ -59,10 +59,13 @@ if __name__ == '__main__':
         callbacks=callbacks,
         log_every_n_steps=1,
         # profiler=AdvancedProfiler(filename='profiler'),
+        logger=logger,
+        # num_sanity_val_steps=0,
     )
 
     trainer.fit(
         model=model,
         train_dataloaders=train_loader,
         val_dataloaders=val_loader,
+        # ckpt_path='lightning_logs/version_0/checkpoints/last.ckpt'
     )

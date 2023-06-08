@@ -89,7 +89,7 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 
 if __name__ == '__main__':
-    model_version = 1
+    model_version = 0
 
-    # inference(model_version, calculate_fid=False, grid_shape=(4, 4), on_gpu=True)
-    inference(model_version, calculate_fid=True, grid_shape=(2, 2), on_gpu=True)
+    inference(model_version, calculate_fid=False, grid_shape=(4, 4), on_gpu=True)
+    # inference(model_version, calculate_fid=True, grid_shape=(2, 2), on_gpu=True)
