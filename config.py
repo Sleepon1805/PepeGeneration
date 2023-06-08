@@ -30,9 +30,9 @@ class Config:
     gradient_clip_val: float = 0.5
 
     # pretrained backbone and current dataset
-    dataset_name: str = 'celeba'
-    pretrained_ckpt: str = None
-    # pretrained_ckpt: str = './lightning_logs/version_11/checkpoints/epoch=16-val_loss=0.0242.ckpt'
+    dataset_name: str = 'twitch_emotes'
+    # pretrained_ckpt: str = None
+    pretrained_ckpt: str = './lightning_logs/version_0/checkpoints/epoch=11-val_loss=0.0244.ckpt'
 
     # gaussian noise hparams
     diffusion_steps: int = 1000
