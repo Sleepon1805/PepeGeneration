@@ -80,9 +80,10 @@ class UNetModel(LightningModule):
     def forward(self, x, timesteps):
         """
         Apply the model to an input batch.
-        :param x: an [N x C x ...] Tensor of inputs.
-        :param timesteps: a 1-D batch of timesteps.
-        :return: an [N x C x ...] Tensor of outputs.
+
+        :param x: input - torch.Tensor with shape (B, C_color, H, W)
+        :param timesteps: a 1-D batch of timesteps - torch.Tensor with shape (B)
+        :return: output - torch.Tensor with shape (B, C_color, H, W)
         """
 
         emb = self.time_embed(timesteps)
@@ -115,6 +116,10 @@ class TimeEmbedding(nn.Module):
         self.linear_1 = nn.Linear(time_embed_dim, time_embed_dim)
 
     def forward(self, x):
+        """
+        :param x: input - torch.Tensor with shape (B,)
+        :return: time embedding - torch.Tensor with shape (B, C_time)
+        """
         x = self.time_embedding(x)
         x = self.linear_0(x)
         x = self.silu(x)
@@ -148,6 +153,11 @@ class DownsampleLayer(nn.Module):
             )
 
     def forward(self, x, emb):
+        """
+        :param x: input - torch.Tensor with shape (B, C_in, H, W)
+        :param emb: time embedding - torch.Tensor with shape (B, C_time)
+        :return: output - torch.Tensor with shape (B, C_out, H[//2], W[//2])
+        """
         x = self.res_0(x, emb)
         if self.use_attention:
             x = self.attention_0(x)
@@ -158,6 +168,7 @@ class DownsampleLayer(nn.Module):
 
         if self.use_downsample:
             x = self.downsample(x)
+
         return x
 
 
@@ -175,6 +186,11 @@ class PyramidBottomLayer(nn.Module):
         )
 
     def forward(self, x, emb):
+        """
+        :param x: input - torch.Tensor with shape (B, C_in, H, W)
+        :param emb: time embedding - torch.Tensor with shape (B, C_time)
+        :return: output - torch.Tensor with shape (B, C_in, H, W)
+        """
         x = self.res_0(x, emb)
         x = self.attention(x)
         x = self.res_1(x, emb)
@@ -213,6 +229,12 @@ class UpsampleLayer(nn.Module):
             )
 
     def forward(self, x, sc_x, emb):
+        """
+        :param x: input - torch.Tensor with shape (B, C_in_x, H, W)
+        :param sc_x: shortcut - torch.Tensor with shape (B, C_in_sc, H, W)
+        :param emb: time embedding - torch.Tensor with shape (B, C_time)
+        :return: output - torch.Tensor with shape (B, C_out, H[*2], W[*2])
+        """
         x = th.cat([x, sc_x], dim=1)
 
         x = self.res_0(x, emb)
@@ -228,4 +250,15 @@ class UpsampleLayer(nn.Module):
             x = self.attention_2(x)
         if self.use_upsample:
             x = self.upsample(x)
+
         return x
+
+
+if __name__ == '__main__':
+    import torch
+
+    config = Config()
+    model = UNetModel(config)
+    example_input_x = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size)
+    example_input_t = torch.ones(config.batch_size)
+    model(example_input_x, example_input_t)
