@@ -41,7 +41,7 @@ class UNetModel(LightningModule):
         self.downsample_3 = DownsampleLayer(
             self.model_channels[2], self.time_embed_dim, self.model_channels[3],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=True, use_downsample=True,
+            use_attention=True, use_downsample=False,
         )
 
         # bottom of pyramid
@@ -50,24 +50,28 @@ class UNetModel(LightningModule):
 
         # upsample layers
         self.upsample_3 = UpsampleLayer(
-            2 * self.model_channels[3], self.time_embed_dim, self.model_channels[2],
-            self.dropout, self.num_heads, self.conv_resample,
+            self.model_channels[3], self.time_embed_dim, self.model_channels[2],
+            sc_channels=(self.model_channels[3], self.model_channels[3], self.model_channels[2]),
+            dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
             use_attention=True, use_upsample=True,
         )
         self.upsample_2 = UpsampleLayer(
-            2 * self.model_channels[2], self.time_embed_dim, self.model_channels[1],
-            self.dropout, self.num_heads, self.conv_resample,
+            self.model_channels[2], self.time_embed_dim, self.model_channels[1],
+            sc_channels=(self.model_channels[2], self.model_channels[2], self.model_channels[1]),
+            dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
             use_attention=True, use_upsample=True,
         )
         self.upsample_1 = UpsampleLayer(
-            2 * self.model_channels[1], self.time_embed_dim, self.model_channels[0],
-            self.dropout, self.num_heads, self.conv_resample,
+            self.model_channels[1], self.time_embed_dim, self.model_channels[0],
+            sc_channels=(self.model_channels[1], self.model_channels[1], self.model_channels[0]),
+            dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
             use_attention=False, use_upsample=True,
         )
         self.upsample_0 = UpsampleLayer(
-            2 * self.model_channels[0], self.time_embed_dim, self.init_channels,
-            self.dropout, self.num_heads, self.conv_resample,
-            use_attention=False, use_upsample=True,
+            self.model_channels[0], self.time_embed_dim, self.init_channels,
+            sc_channels=(self.model_channels[0], self.model_channels[0], self.init_channels),
+            dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
+            use_attention=False, use_upsample=False,
         )
 
         self.out = nn.Sequential(
@@ -91,16 +95,18 @@ class UNetModel(LightningModule):
         x = self.init_conv(x)
 
         down_0 = self.downsample_0(x, emb)
-        down_1 = self.downsample_1(down_0, emb)
-        down_2 = self.downsample_2(down_1, emb)
-        down_3 = self.downsample_3(down_2, emb)
+        down_1 = self.downsample_1(down_0[-1], emb)
+        down_2 = self.downsample_2(down_1[-1], emb)
+        down_3 = self.downsample_3(down_2[-1], emb)
 
-        bottom = self.bottom_block(down_3, emb)
+        bottom = self.bottom_block(down_3[-1], emb)
 
-        up_3 = self.upsample_3(bottom, down_3, emb)
-        up_2 = self.upsample_2(up_3, down_2, emb)
-        up_1 = self.upsample_1(up_2, down_1, emb)
-        up_0 = self.upsample_0(up_1, down_0, emb)
+        all_scs = (x,) + down_0 + down_1 + down_2 + down_3
+
+        up_3 = self.upsample_3(bottom, all_scs[9:12], emb)
+        up_2 = self.upsample_2(up_3, all_scs[6:9], emb)
+        up_1 = self.upsample_1(up_2, all_scs[3:6], emb)
+        up_0 = self.upsample_0(up_1, all_scs[0:3], emb)
 
         out = self.out(up_0)
         return out
@@ -156,20 +162,23 @@ class DownsampleLayer(nn.Module):
         """
         :param x: input - torch.Tensor with shape (B, C_in, H, W)
         :param emb: time embedding - torch.Tensor with shape (B, C_time)
-        :return: output - torch.Tensor with shape (B, C_out, H[//2], W[//2])
+        :return: outputs - (torch.Tensor with shape (B, C_out, H, W),
+                            torch.Tensor with shape (B, C_out, H, W),
+                            torch.Tensor with shape (B, C_out, H[//2], W[//2]))
         """
-        x = self.res_0(x, emb)
+        x_0 = self.res_0(x, emb)
         if self.use_attention:
-            x = self.attention_0(x)
+            x_0 = self.attention_0(x_0)
 
-        x = self.res_1(x, emb)
+        x_1 = self.res_1(x_0, emb)
         if self.use_attention:
-            x = self.attention_1(x)
+            x_1 = self.attention_1(x_1)
 
         if self.use_downsample:
-            x = self.downsample(x)
-
-        return x
+            x_2 = self.downsample(x_1)
+            return x_0, x_1, x_2
+        else:
+            return x_0, x_1
 
 
 class PyramidBottomLayer(nn.Module):
@@ -198,20 +207,21 @@ class PyramidBottomLayer(nn.Module):
 
 
 class UpsampleLayer(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, dropout, num_heads, conv_resample,
+    def __init__(self, in_channels, hidden_channels, out_channels, sc_channels,
+                 dropout, num_heads, conv_resample,
                  use_attention: bool, use_upsample: bool):
         super().__init__()
         self.use_attention = use_attention
         self.use_upsample = use_upsample
 
         self.res_0 = ResBlock(
-            in_channels, hidden_channels, dropout, out_channels,
+            in_channels + sc_channels[0], hidden_channels, dropout, out_channels,
         )
         self.res_1 = ResBlock(
-            out_channels, hidden_channels, dropout, out_channels,
+            out_channels + sc_channels[1], hidden_channels, dropout, out_channels,
         )
         self.res_2 = ResBlock(
-            out_channels, hidden_channels, dropout, out_channels,
+            out_channels + sc_channels[2], hidden_channels, dropout, out_channels,
         )
         if self.use_attention:
             self.attention_0 = AttentionBlock(
@@ -228,26 +238,30 @@ class UpsampleLayer(nn.Module):
                 out_channels, conv_resample
             )
 
-    def forward(self, x, sc_x, emb):
+    def forward(self, x, shortcuts, emb):
         """
         :param x: input - torch.Tensor with shape (B, C_in_x, H, W)
-        :param sc_x: shortcut - torch.Tensor with shape (B, C_in_sc, H, W)
+        :param shortcuts: shortcut - torch.Tensor with shape (B, C_in_sc, H, W)
         :param emb: time embedding - torch.Tensor with shape (B, C_time)
         :return: output - torch.Tensor with shape (B, C_out, H[*2], W[*2])
         """
-        x = th.cat([x, sc_x], dim=1)
+        sc_0, sc_1, sc_2 = shortcuts
 
+        x = th.cat([x, sc_2], dim=1)
         x = self.res_0(x, emb)
         if self.use_attention:
             x = self.attention_0(x)
 
+        x = th.cat([x, sc_1], dim=1)
         x = self.res_1(x, emb)
         if self.use_attention:
             x = self.attention_1(x)
 
+        x = th.cat([x, sc_0], dim=1)
         x = self.res_2(x, emb)
         if self.use_attention:
             x = self.attention_2(x)
+
         if self.use_upsample:
             x = self.upsample(x)
 
@@ -255,10 +269,8 @@ class UpsampleLayer(nn.Module):
 
 
 if __name__ == '__main__':
-    import torch
-
     config = Config()
     model = UNetModel(config)
-    example_input_x = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size)
-    example_input_t = torch.ones(config.batch_size)
+    example_input_x = th.Tensor(config.batch_size, 3, config.image_size, config.image_size)
+    example_input_t = th.ones(config.batch_size)
     model(example_input_x, example_input_t)
