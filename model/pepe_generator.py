@@ -24,23 +24,19 @@ class PepeGenerator(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
-        if self.config.scheduler is None or self.config.scheduler['name'].lower() in ('no', 'none'):
+        if self.config.scheduler is None or self.config.scheduler.lower() in ('no', 'none'):
             print('No scheduler')
             return optimizer
-        elif self.config.scheduler['name'].lower() == 'multisteplr':
-            print(f'Using MultiStepLR({str(self.config.scheduler["params"])})')
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                             **self.config.scheduler["params"],
+        elif self.config.scheduler.lower() == 'multisteplr':
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, gamma=0.1, milestones=(10, 20, 30),
                                                              verbose=True)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler}}
-        elif self.config.scheduler['name'].lower() == 'reducelronplateau':
-            print(f'Using ReduceLROnPlateau({str(self.config.scheduler["params"])})')
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                                   **self.config.scheduler["params"],
+        elif self.config.scheduler.lower() == 'reducelronplateau':
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=4, min_lr=1e-6,
                                                                    mode='min', verbose=True)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
         else:
-            raise NotImplemented(self.config.scheduler['name'])
+            raise NotImplemented(self.config.scheduler)
 
     def training_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)
@@ -60,23 +56,8 @@ class PepeGenerator(pl.LightningModule):
             pickle.dump(self.config, f, pickle.HIGHEST_PROTOCOL)
 
     def on_validation_end(self) -> None:
-        # generate some images to log their distribution
         if self.global_step > 0:  # to skip sanity check
-            grid_size = (3, 3)
-            with self.trainer.progress_bar_callback.progress as progress:
-                gen_samples = self.generate_samples(grid_size[0] * grid_size[1], progress)
-
-            # distributions
-            self.logger.experiment.add_histogram('generated_distribution/blue', gen_samples[..., 0],
-                                                 global_step=self.current_epoch)
-            self.logger.experiment.add_histogram('generated_distribution/green', gen_samples[..., 1],
-                                                 global_step=self.current_epoch)
-            self.logger.experiment.add_histogram('generated_distribution/red', gen_samples[..., 2],
-                                                 global_step=self.current_epoch)
-
-            # images
-            images = self.generated_samples_to_images(gen_samples, grid_size)
-            self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
+            self._log_images_and_dists()
 
     def forward(self, x, t):
         return self.model(x, t)
@@ -120,3 +101,19 @@ class PepeGenerator(pl.LightningModule):
         gen_samples = np.moveaxis(gen_samples, 0, -1)
 
         return gen_samples
+
+    def _log_images_and_dists(self, grid_size=(3, 3)):
+        """
+        Generate some images to log them and their distribution
+        """
+
+        with self.trainer.progress_bar_callback.progress as progress:
+            gen_samples = self.generate_samples(grid_size[0] * grid_size[1], progress)
+
+        # distributions
+        self.logger.experiment.add_histogram('generated_distribution', gen_samples,
+                                             global_step=self.current_epoch)
+
+        # images
+        images = self.generated_samples_to_images(gen_samples, grid_size)
+        self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")

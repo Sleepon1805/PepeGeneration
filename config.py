@@ -22,10 +22,7 @@ class Config:
     batch_size: int = 32
     image_size: int = 64  # size of image NxN
     lr: float = 1e-4  # learning rate on training start
-    scheduler: MappingProxyType = None
-    # scheduler: MappingProxyType = MappingProxyType(
-    #     {'name': 'ReduceLROnPlateau', 'params': {'factor': 0.1, 'patience': 4, 'min_lr': 1e-6}}
-    # )
+    scheduler: str = 'no'
     gradient_clip_algorithm: str = "norm"
     gradient_clip_val: float = 0.5
 
