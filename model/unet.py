@@ -1,6 +1,8 @@
-from pytorch_lightning import LightningModule
+import torch
+import torch.nn as nn
+from lightning import LightningModule
 
-from model.modules import *
+from model.modules import (ResBlock, Upsample, Downsample, AttentionBlock, SinTimestepEmbedding, NormalizationLayer)
 from config import Config
 
 
@@ -247,17 +249,17 @@ class UpsampleLayer(nn.Module):
         """
         sc_0, sc_1, sc_2 = shortcuts
 
-        x = th.cat([x, sc_2], dim=1)
+        x = torch.cat([x, sc_2], dim=1)
         x = self.res_0(x, emb)
         if self.use_attention:
             x = self.attention_0(x)
 
-        x = th.cat([x, sc_1], dim=1)
+        x = torch.cat([x, sc_1], dim=1)
         x = self.res_1(x, emb)
         if self.use_attention:
             x = self.attention_1(x)
 
-        x = th.cat([x, sc_0], dim=1)
+        x = torch.cat([x, sc_0], dim=1)
         x = self.res_2(x, emb)
         if self.use_attention:
             x = self.attention_2(x)
@@ -269,8 +271,9 @@ class UpsampleLayer(nn.Module):
 
 
 if __name__ == '__main__':
-    config = Config()
-    model = UNetModel(config)
-    example_input_x = th.Tensor(config.batch_size, 3, config.image_size, config.image_size)
-    example_input_t = th.ones(config.batch_size)
-    model(example_input_x, example_input_t)
+    cfg = Config()
+    model = UNetModel(cfg)
+    example_input_x = torch.Tensor(cfg.batch_size, 3, cfg.image_size, cfg.image_size)
+    example_input_t = torch.ones(cfg.batch_size)
+    model = torch.compile(model)
+    print(model(example_input_x, example_input_t))

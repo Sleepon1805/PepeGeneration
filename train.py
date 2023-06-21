@@ -1,10 +1,10 @@
 import sys
 import torch
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary, LearningRateMonitor, RichProgressBar
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning.profilers import AdvancedProfiler
-from pytorch_lightning.loggers import TensorBoardLogger
+import lightning as L
+from lightning.pytorch.callbacks import ModelCheckpoint, ModelSummary, LearningRateMonitor, RichProgressBar
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.profilers import AdvancedProfiler
+from lightning.pytorch.loggers import TensorBoardLogger
 
 from dataset.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
@@ -37,6 +37,7 @@ if __name__ == '__main__':
         checkpoint = cfg.pretrained_ckpt
         model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg)
         model.config = cfg
+    # model = torch.compile(model)
 
     # logger
     logger = TensorBoardLogger('lightning_logs', name='', log_graph=False, default_hp_metric=False,
@@ -53,7 +54,7 @@ if __name__ == '__main__':
         LearningRateMonitor(logging_interval='epoch'),  # LR in logger
     ]
 
-    trainer = pl.Trainer(
+    trainer = L.Trainer(
         max_epochs=50,
         accelerator='auto',
         callbacks=callbacks,

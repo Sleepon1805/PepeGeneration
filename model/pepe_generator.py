@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import pickle
-import pytorch_lightning as pl
+from lightning import LightningModule
 from rich.progress import Progress
 
 from model.unet import UNetModel
@@ -9,7 +9,7 @@ from model.diffusion import Diffusion
 from config import Config
 
 
-class PepeGenerator(pl.LightningModule):
+class PepeGenerator(LightningModule):
     def __init__(self, config: Config):
         super().__init__()
         self.config = config

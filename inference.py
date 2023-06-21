@@ -1,12 +1,11 @@
 import os
 import glob
-import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import torchmetrics
 import pickle
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
-    MofNCompleteColumn, FileSizeColumn, TotalFileSizeColumn, DownloadColumn, TransferSpeedColumn, RenderableColumn
+    MofNCompleteColumn
 
 from model.pepe_generator import PepeGenerator
 from dataset.dataset import PepeDataset
