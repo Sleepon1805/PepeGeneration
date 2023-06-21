@@ -2,7 +2,6 @@ import os
 import subprocess
 from dataclasses import dataclass
 from typing import Tuple
-from types import MappingProxyType
 
 
 @dataclass
@@ -38,7 +37,7 @@ class Config:
 
     # model params
     init_channels: int = 128
-    channel_mult: Tuple[int, int, int, int] = (1, 2, 4, 8)
+    channel_mult: Tuple[int, int, int, int] = (1, 2, 4, 4)
     conv_resample: bool = True
     num_heads: int = 1
     dropout: float = 0
