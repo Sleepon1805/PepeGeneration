@@ -26,7 +26,7 @@ class Config:
     gradient_clip_val: float = 0.5
 
     # pretrained backbone and current dataset
-    dataset_name: str = 'celeba'
+    dataset_name: str = 'twitch_emotes'
     pretrained_ckpt: str = None
     # pretrained_ckpt: str = './lightning_logs/version_0/checkpoints/epoch=11-val_loss=0.0244.ckpt'
 
@@ -36,7 +36,7 @@ class Config:
     beta_max: float = 0.02
 
     # model params
-    init_channels: int = 128
+    init_channels: int = 256
     channel_mult: Tuple[int, int, int, int] = (1, 2, 4, 4)
     conv_resample: bool = True
     num_heads: int = 1
