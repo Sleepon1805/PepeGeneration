@@ -5,6 +5,7 @@ from torchvision import transforms
 import lmdb
 import zstandard
 from tqdm import tqdm
+from matplotlib import pyplot as plt
 
 from config import Paths, Config
 
@@ -36,14 +37,14 @@ class PepeDataset(Dataset):
     def __len__(self):
         return self.length
 
-    def __getitem__(self, idx):
+    def __getitem__(self, index):
         # load databases
         if self.db is None:
             self._init_database()
 
         # get items
         with self.db.begin(write=False) as txn:
-            image = pickle.loads(self.decompressor.decompress(txn.get(self.keys[idx])))
+            image = pickle.loads(self.decompressor.decompress(txn.get(self.keys[index])))
 
         # augmentations
         if self.augmentations:
@@ -51,6 +52,13 @@ class PepeDataset(Dataset):
         image = transforms.ToTensor()(image)
         image = 2 * image - 1
         return image
+
+    def show_image(self, index):
+        sample = self[index]
+        image = sample.numpy().transpose((1, 2, 0))
+        image = (image + 1) / 2
+        plt.imshow(image)
+        plt.show()
 
 
 if __name__ == '__main__':
