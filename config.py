@@ -18,7 +18,7 @@ class Config:
     git_hash: str = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
 
     # hparams
-    batch_size: int = 32
+    batch_size: int = 16
     image_size: int = 64  # size of image NxN
     lr: float = 1e-4  # learning rate on training start
     scheduler: str = 'no'
