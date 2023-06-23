@@ -60,8 +60,19 @@ def check_emote_name(name: str):
         'pepo' in name,
         'peepo' in name,
         'monka' in name,
-        name.endswith('ge'),
+        # name.endswith('ge'),
         # name.endswith('eg'),
     ])
     return valid_name
 
+
+if __name__ == '__main__':
+    from config import Paths
+    path = Paths().twitch_emotes_data_path
+    collect_twitch_emotes(path)
+
+    # import shutil
+    # old_path = '/home/sleepon/data/TwitchPepeDatasetv0/'
+    # for filename in os.listdir(old_path):
+    #     if check_emote_name(filename):
+    #         shutil.copy2(old_path + filename, path + filename)
