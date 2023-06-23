@@ -18,7 +18,7 @@ class Config:
     git_hash: str = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
 
     # hparams
-    batch_size: int = 16
+    batch_size: int = 32
     image_size: int = 64  # size of image NxN
     lr: float = 1e-4  # learning rate on training start
     scheduler: str = 'no'
@@ -36,11 +36,11 @@ class Config:
     beta_max: float = 0.02
 
     # model params
-    init_channels: int = 256
-    channel_mult: Tuple[int, int, int, int] = (1, 2, 4, 4)
+    init_channels: int = 128
+    channel_mult: Tuple[int, int, int, int] = (1, 2, 3, 4)
     conv_resample: bool = True
     num_heads: int = 1
-    dropout: float = 0
+    dropout: float = 0.3
 
     # training params
     dataset_split: Tuple[float, float] = (0.8, 0.2)

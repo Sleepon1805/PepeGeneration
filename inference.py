@@ -35,7 +35,7 @@ def inference(version, grid_shape=(4, 4), calculate_fid: bool = False, on_gpu: b
     model, config = load_model_and_config(version, device)
 
     with progress:
-        # gen_samples: torch.Tensor (grid_shape[0] * grid_shape[1], 3, cfg.image_size, cfg.image_size)
+        # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size)
         gen_samples = model.generate_samples(grid_shape[0] * grid_shape[1], progress=progress)
         gen_images = model.generated_samples_to_images(gen_samples, grid_shape)
 
@@ -43,7 +43,16 @@ def inference(version, grid_shape=(4, 4), calculate_fid: bool = False, on_gpu: b
             calculate_fid_loss(gen_samples, config, device, progress=progress)
 
     # save resulting pics
+    fig, ax = plt.subplots(3, sharey='all', figsize=(10, 5))
+    ax[0].hist(gen_images.reshape((-1, 3))[:, 0], bins=100, color='red')
+    ax[1].hist(gen_images.reshape((-1, 3))[:, 1], bins=100, color='green')
+    ax[2].hist(gen_images.reshape((-1, 3))[:, 2], bins=100, color='blue')
+    plt.savefig(folder_to_save + '/distribution.png')
+    plt.show()
+
+    plt.imshow(gen_images)
     plt.imsave(folder_to_save + '/final_pred.png', gen_images)
+    plt.show()
     print(f'Saved results at {folder_to_save}')
 
 
