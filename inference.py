@@ -4,6 +4,7 @@ import torch
 import matplotlib.pyplot as plt
 import torchmetrics
 import pickle
+from pathlib import Path
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
     MofNCompleteColumn
 
@@ -12,8 +13,8 @@ from dataset.dataset import PepeDataset
 from config import Paths, Config
 
 
-def inference(version, grid_shape=(4, 4), calculate_fid: bool = False, on_gpu: bool = True):
-    folder_to_save = f'./lightning_logs/version_{version}/results/'
+def inference(checkpoint: Path, grid_shape=(4, 4), calculate_fid: bool = False, on_gpu: bool = True):
+    folder_to_save = checkpoint.parents[1].joinpath('results/')
     if not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)
 
@@ -32,35 +33,36 @@ def inference(version, grid_shape=(4, 4), calculate_fid: bool = False, on_gpu: b
         TimeRemainingColumn()
     )
 
-    model, config = load_model_and_config(version, device)
+    model, config = load_model_and_config(checkpoint, device)
 
     with progress:
         # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
         gen_samples = model.generate_samples(grid_shape[0] * grid_shape[1], progress=progress)
-        gen_images = model.generated_samples_to_images(gen_samples, grid_shape)
 
         if calculate_fid:
             calculate_fid_loss(gen_samples, config, device, progress=progress)
 
     # save resulting pics
     fig, ax = plt.subplots(3, sharey='all', figsize=(10, 5))
-    ax[0].hist(gen_images.reshape((-1, 3))[:, 0], bins=100, color='red')
-    ax[1].hist(gen_images.reshape((-1, 3))[:, 1], bins=100, color='green')
-    ax[2].hist(gen_images.reshape((-1, 3))[:, 2], bins=100, color='blue')
-    plt.savefig(folder_to_save + '/distribution.png')
+    sampled_data = gen_samples.moveaxis(1, 0).flatten(1).cpu()
+    ax[0].hist(sampled_data[0], bins=100, color='red')
+    ax[1].hist(sampled_data[1], bins=100, color='green')
+    ax[2].hist(sampled_data[2], bins=100, color='blue')
+    plt.savefig(folder_to_save.joinpath('distribution.png'))
     plt.show()
 
+    gen_images = model.generated_samples_to_images(gen_samples, grid_shape)
+
     plt.imshow(gen_images)
-    plt.imsave(folder_to_save + '/final_pred.png', gen_images)
+    plt.imsave(folder_to_save.joinpath('final_pred.png'), gen_images)
     plt.show()
     print(f'Saved results at {folder_to_save}')
 
 
-def load_model_and_config(version, device: str):
-    checkpoint = sorted(glob.glob(f'./lightning_logs/version_{version}/checkpoints/epoch=*.ckpt'))[-1]
+def load_model_and_config(checkpoint: Path, device: str):
     print(f'Loaded checkpoint is {checkpoint}')
 
-    with open(f'./lightning_logs/version_{version}/config.pkl', 'rb') as config_file:
+    with open(checkpoint.parents[1].joinpath('config.pkl'), 'rb') as config_file:
         try:
             config = pickle.load(config_file)
         except:
@@ -97,7 +99,10 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 
 if __name__ == '__main__':
-    model_version = 0
+    version = 6
+    # dataset_name = 'celeba'
+    dataset = 'twitch_emotes'
+    ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset}/version_{version}/checkpoints/last.ckpt'))[-1])
 
-    inference(model_version, calculate_fid=False, grid_shape=(4, 4), on_gpu=True)
-    # inference(model_version, calculate_fid=True, grid_shape=(2, 2), on_gpu=True)
+    inference(ckpt, calculate_fid=False, grid_shape=(4, 4), on_gpu=True)
+    # inference(model_version, dataset_name, calculate_fid=True, grid_shape=(2, 2), on_gpu=True)

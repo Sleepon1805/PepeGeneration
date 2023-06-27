@@ -22,4 +22,4 @@ Modifications:
 
 Last result: Version 11
 
-![last_results](./docs/final_pred.png)
+![last_results](docs/celeba/final_pred.png)
