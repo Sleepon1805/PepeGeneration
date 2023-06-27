@@ -37,10 +37,10 @@ if __name__ == '__main__':
         checkpoint = cfg.pretrained_ckpt
         model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg)
         model.config = cfg
-    # model = torch.compile(model)  # FIXME
+    # model = torch.compile(model)
 
     # logger
-    logger = TensorBoardLogger('lightning_logs', name='', log_graph=False, default_hp_metric=False,
+    logger = TensorBoardLogger('lightning_logs', name=cfg.dataset_name, log_graph=False, default_hp_metric=False,
                                # version=0,
                                )
 
