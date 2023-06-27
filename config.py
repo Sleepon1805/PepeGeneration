@@ -37,7 +37,7 @@ class Config:
 
     # model params
     init_channels: int = 128
-    channel_mult: Tuple[int, int, int, int] = (1, 2, 3, 4)
+    channel_mult: Tuple[int, int, int, int] = (1, 2, 4, 4)
     conv_resample: bool = True
     num_heads: int = 1
     dropout: float = 0.3

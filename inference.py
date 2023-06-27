@@ -35,7 +35,7 @@ def inference(version, grid_shape=(4, 4), calculate_fid: bool = False, on_gpu: b
     model, config = load_model_and_config(version, device)
 
     with progress:
-        # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size)
+        # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
         gen_samples = model.generate_samples(grid_shape[0] * grid_shape[1], progress=progress)
         gen_images = model.generated_samples_to_images(gen_samples, grid_shape)
 
