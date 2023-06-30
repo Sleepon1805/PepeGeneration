@@ -43,7 +43,7 @@ def inference(checkpoint: Path, grid_shape=(4, 4), calculate_fid: bool = False, 
             calculate_fid_loss(gen_samples, config, device, progress=progress)
 
     # save resulting pics
-    fig, ax = plt.subplots(3, sharey='all', figsize=(10, 5))
+    fig, ax = plt.subplots(3, sharex='all', sharey='all', figsize=(10, 5))
     sampled_data = gen_samples.moveaxis(1, 0).flatten(1).cpu()
     ax[0].hist(sampled_data[0], bins=100, color='red')
     ax[1].hist(sampled_data[1], bins=100, color='green')
@@ -99,7 +99,7 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 
 if __name__ == '__main__':
-    version = 6
+    version = 7
     # dataset_name = 'celeba'
     dataset = 'twitch_emotes'
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset}/version_{version}/checkpoints/last.ckpt'))[-1])

@@ -29,11 +29,11 @@ class PepeGenerator(LightningModule):
             return optimizer
         elif self.config.scheduler.lower() == 'multisteplr':
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, gamma=0.1, milestones=(10, 20, 30),
-                                                             verbose=True)
+                                                             verbose=False)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler}}
         elif self.config.scheduler.lower() == 'reducelronplateau':
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=4, min_lr=1e-6,
-                                                                   mode='min', verbose=True)
+                                                                   mode='min', verbose=False)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
         else:
             raise NotImplemented(self.config.scheduler)

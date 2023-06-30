@@ -47,7 +47,7 @@ if __name__ == '__main__':
     # train the model
     callbacks = [
         RichProgressBar(leave=True),  # progression bar
-        EarlyStopping(monitor='val_loss', min_delta=0.0, patience=5, mode='min'),  # early stopping
+        # EarlyStopping(monitor='val_loss', min_delta=0.0, patience=5, mode='min'),  # early stopping
         ModelCheckpoint(save_top_k=1, monitor='val_loss', save_last=True,
                         filename='{epoch:02d}-{val_loss:.4f}'),  # checkpointing
         ModelSummary(max_depth=2),  # deeper model summary
