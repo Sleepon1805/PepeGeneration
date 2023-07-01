@@ -26,7 +26,7 @@ class Config:
     gradient_clip_val: float = 0.5
 
     # pretrained backbone and current dataset
-    dataset_name: str = 'twitch_emotes'
+    dataset_name: str = 'celeba'
     use_condition: bool = True
     pretrained_ckpt: str = None
     # pretrained_ckpt: str = './lightning_logs/celeba/version_1/checkpoints/last.ckpt'

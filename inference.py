@@ -99,9 +99,8 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 
 if __name__ == '__main__':
-    version = 7
-    # dataset_name = 'celeba'
-    dataset = 'twitch_emotes'
+    version = 1
+    dataset = 'celeba'
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset}/version_{version}/checkpoints/last.ckpt'))[-1])
 
     inference(ckpt, calculate_fid=False, grid_shape=(4, 4), on_gpu=True)

@@ -80,6 +80,9 @@ class PepeGenerator(LightningModule):
         # Generate samples from denoising process
         x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device)
         sample_steps = torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
+        if cond is None and self.config.use_condition:
+            # create random condition
+            cond = torch.bernoulli(torch.full((num_images, 40), 0.5, device=self.device)) * 2 - 1
         for t in sample_steps:
             progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
             progress.refresh()
