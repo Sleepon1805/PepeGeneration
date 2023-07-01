@@ -21,6 +21,7 @@ class UNetModel(LightningModule):
         self.time_embed_dim = self.init_channels * 4
 
         self.time_embed = TimeEmbedding(self.init_channels, self.time_embed_dim)
+        self.condition_emb = ConditionEmbedding(self.init_channels, self.time_embed_dim, config.condition_size)
 
         # downsample layers
         self.init_conv = nn.Conv2d(self.in_channels, self.init_channels, 3, padding=1)
@@ -83,16 +84,19 @@ class UNetModel(LightningModule):
             nn.Conv2d(self.init_channels // 2, self.out_channels, 3, padding=1),
         )
 
-    def forward(self, x, timesteps):
+    def forward(self, x, timesteps, cond=None):
         """
         Apply the model to an input batch.
 
         :param x: input - torch.Tensor with shape (B, C_color, H, W)
         :param timesteps: a 1-D batch of timesteps - torch.Tensor with shape (B)
+        :param cond: torch.Tensor with shape (B, C_cond)
         :return: output - torch.Tensor with shape (B, C_color, H, W)
         """
 
         emb = self.time_embed(timesteps)
+        if cond is not None:
+            emb += self.condition_emb(cond)
 
         x = self.init_conv(x)
 
@@ -129,6 +133,27 @@ class TimeEmbedding(nn.Module):
         :return: time embedding - torch.Tensor with shape (B, C_time)
         """
         x = self.time_embedding(x)
+        x = self.linear_0(x)
+        x = self.silu(x)
+        x = self.linear_1(x)
+        return x
+
+
+class ConditionEmbedding(nn.Module):
+    def __init__(self, model_channels, time_embed_dim, embedding_length=40):
+        super().__init__()
+
+        self.cond_embedding = nn.Linear(embedding_length, model_channels)
+        self.linear_0 = nn.Linear(model_channels, time_embed_dim)
+        self.silu = nn.SiLU()
+        self.linear_1 = nn.Linear(time_embed_dim, time_embed_dim)
+
+    def forward(self, x):
+        """
+        :param x: input - torch.Tensor with shape (B,)
+        :return: time embedding - torch.Tensor with shape (B, C_time)
+        """
+        x = self.cond_embedding(x)
         x = self.linear_0(x)
         x = self.silu(x)
         x = self.linear_1(x)

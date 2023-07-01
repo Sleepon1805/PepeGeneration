@@ -27,8 +27,9 @@ class Config:
 
     # pretrained backbone and current dataset
     dataset_name: str = 'twitch_emotes'
-    # pretrained_ckpt: str = None
-    pretrained_ckpt: str = './lightning_logs/celeba/version_1/checkpoints/last.ckpt'
+    use_condition: bool = True
+    pretrained_ckpt: str = None
+    # pretrained_ckpt: str = './lightning_logs/celeba/version_1/checkpoints/last.ckpt'
 
     # gaussian noise hparams
     diffusion_steps: int = 1000
@@ -41,6 +42,7 @@ class Config:
     conv_resample: bool = True
     num_heads: int = 1
     dropout: float = 0.3
+    condition_size: int = 40
 
     # training params
     dataset_split: Tuple[float, float] = (0.8, 0.2)

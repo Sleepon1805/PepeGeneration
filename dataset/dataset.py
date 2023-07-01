@@ -1,5 +1,7 @@
 import os.path
 import pickle
+
+import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import lmdb
@@ -44,21 +46,18 @@ class PepeDataset(Dataset):
 
         # get items
         with self.db.begin(write=False) as txn:
-            image = pickle.loads(self.decompressor.decompress(txn.get(self.keys[index])))
+            image, condition = pickle.loads(self.decompressor.decompress(txn.get(self.keys[index])))
 
         # augmentations
         if self.augmentations:
             image = self.augmentations(image)
+
+        # to tensor
         image = transforms.ToTensor()(image)
         image = 2 * image - 1
-        return image
+        condition = torch.tensor(condition.astype('float32'))
 
-    def show_image(self, index):
-        sample = self[index]
-        image = sample.numpy().transpose((1, 2, 0))
-        image = (image + 1) / 2
-        plt.imshow(image)
-        plt.show()
+        return image, condition
 
 
 if __name__ == '__main__':
@@ -66,4 +65,5 @@ if __name__ == '__main__':
     dataset = PepeDataset(dataset_name='celeba', paths=Paths())
     dataloader = DataLoader(dataset, batch_size=cfg.batch_size, num_workers=8)
     for batch in tqdm(dataloader, desc="Testing dataset... "):
-        assert batch.shape[1:] == (3, cfg.image_size, cfg.image_size), batch.shape
+        assert batch[0].shape[1:] == (3, cfg.image_size, cfg.image_size), batch[0].shape
+        assert batch[1].shape[1:] == (40,), batch[1].shape

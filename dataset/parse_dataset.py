@@ -1,6 +1,9 @@
 import os
 import cv2
+import numpy as np
 from tqdm import tqdm
+from pathlib import Path
+import pandas as pd
 
 from config import Paths, Config
 from lmdb_helper import LMDBCreator
@@ -13,6 +16,7 @@ class DataParser:
         self.source_data_path, self.save_path = self._init_data_paths(paths, self.dataset_name)
         self.db = LMDBCreator(self.save_path)  # lmdb
         self.image_size = (config.image_size, config.image_size)
+        self.cond_size = config.condition_size
 
     @staticmethod
     def _init_data_paths(paths: Paths, dataset_name: str):
@@ -46,11 +50,33 @@ class DataParser:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image = cv2.resize(image, dsize=self.image_size, interpolation=cv2.INTER_CUBIC)
 
+            # parse condition (emoticon name of celeba attributes)
+            condition = self._parse_condition(filename)
+
             # save image
-            self.db.write_lmdb_sample(sample_num, image)
+            self.db.write_lmdb_sample(sample_num, (image, condition))
 
         # save length and keys
         self.db.write_lmdb_metadata(len(os.listdir(self.source_data_path)))
+
+    def _parse_condition(self, filename: str):
+        if self.dataset_name in ('pepe', 'twitch_emotes'):
+            if filename.endswith('.png'):
+                filename = filename[:-4]
+            name = ''.join(i.lower() for i in filename if i.isalpha())  # take only letters in lower case
+            enum_letter = (lambda s: ord(s) - 97)  # enumerate lower case letters from 0 to 25
+            one_hot_cond = np.zeros((26, self.cond_size))
+            for i, letter in enumerate(name):
+                one_hot_cond[enum_letter(letter), i] = 1
+            return one_hot_cond
+        elif self.dataset_name == 'celeba':
+            if not hasattr(self, 'attributes_df'):
+                csv_path = Path(self.source_data_path).parents[1].joinpath('list_attr_celeba.csv')
+                self.attributes_df = pd.read_csv(csv_path)
+            attributes = self.attributes_df.loc[self.attributes_df['image_id'] == filename].to_numpy()
+            attributes = attributes[0][1:].astype('float32')
+            assert attributes.shape == (self.cond_size, )
+            return attributes
 
 
 if __name__ == '__main__':

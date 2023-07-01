@@ -19,8 +19,8 @@ class PepeGenerator(LightningModule):
         self.loss_func = torch.nn.MSELoss()
 
         self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
-            torch.ones(config.batch_size)
-        self.save_hyperparameters(self.config.__dict__)
+            torch.ones(config.batch_size), torch.ones(config.batch_size, config.condition_size)
+        self.save_hyperparameters()
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
@@ -49,8 +49,6 @@ class PepeGenerator(LightningModule):
         return
 
     def on_train_start(self) -> None:
-        # log hparams
-        self.logger.log_hyperparams(params=self.config.__dict__)
         # save hparams
         with open(self.logger.log_dir + '/config.pkl', 'wb') as f:
             pickle.dump(self.config, f, pickle.HIGHEST_PROTOCOL)
@@ -59,22 +57,23 @@ class PepeGenerator(LightningModule):
         if self.global_step > 0:  # to skip sanity check
             self._log_images_and_dists()
 
-    def forward(self, x, t):
-        return self.model(x, t)
+    def forward(self, x, t, cond):
+        return self.model(x, t, cond=cond)
 
     def _calculate_loss(self, batch):
-        ts = self.diffusion.sample_timesteps(batch.shape[0])
-        noised_batch, noise = self.diffusion.noise_images(batch, ts)
-        output = self.forward(noised_batch, ts)
+        image_batch, cond_batch = batch
+        ts = self.diffusion.sample_timesteps(image_batch.shape[0])
+        noised_batch, noise = self.diffusion.noise_images(image_batch, ts)
+        output = self.forward(noised_batch, ts, cond_batch)
         loss = self.loss_func(output, noise)
         return loss
 
-    def denoise_sample(self, x, t):
-        predicted_noise = self.forward(x, t.repeat(x.shape[0]))
+    def denoise_sample(self, x, t, cond):
+        predicted_noise = self.forward(x, t.repeat(x.shape[0]), cond)
         x = self.diffusion.denoise_images(x, t, predicted_noise)
         return x
 
-    def generate_samples(self, num_images, progress: Progress) -> torch.Tensor:
+    def generate_samples(self, num_images, progress: Progress, cond=None) -> torch.Tensor:
         torch.manual_seed(137)
         progress.generating_progress_bar_id = progress.add_task("[white]Generating images",
                                                                 total=self.config.diffusion_steps-1)
@@ -84,7 +83,7 @@ class PepeGenerator(LightningModule):
         for t in sample_steps:
             progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
             progress.refresh()
-            x = self.denoise_sample(x, t)
+            x = self.denoise_sample(x, t, cond)
         return x
 
     @staticmethod
