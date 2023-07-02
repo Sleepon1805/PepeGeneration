@@ -21,7 +21,7 @@ class Config:
     batch_size: int = 32
     image_size: int = 64  # size of image NxN
     lr: float = 1e-3  # learning rate on training start
-    scheduler: str = 'MultiStepLR'
+    scheduler: str = None
     gradient_clip_algorithm: str = "norm"
     gradient_clip_val: float = 0.5
 
