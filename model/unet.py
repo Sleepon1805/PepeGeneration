@@ -144,21 +144,21 @@ class ConditionEmbedding(nn.Module):
         super().__init__()
 
         self.cond_embedding = nn.Linear(embedding_length, model_channels)
-        self.silu_0 = nn.SiLU()
         self.linear_0 = nn.Linear(model_channels, time_embed_dim)
-        self.silu_1 = nn.SiLU()
         self.linear_1 = nn.Linear(time_embed_dim, time_embed_dim)
+        self.silu = nn.SiLU()
 
     def forward(self, x):
         """
-        :param x: input - torch.Tensor with shape (B,)
+        :param x: input - torch.Tensor with shape (B, emb_length)
         :return: time embedding - torch.Tensor with shape (B, C_time)
         """
         x = self.cond_embedding(x)
-        x = self.silu_0(x)
+        x = self.silu(x)
         x = self.linear_0(x)
-        x = self.silu_1(x)
+        x = self.silu(x)
         x = self.linear_1(x)
+        x = self.silu(x)
         return x
 
 

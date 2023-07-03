@@ -20,7 +20,7 @@ class Config:
     # hparams
     batch_size: int = 32
     image_size: int = 64  # size of image NxN
-    lr: float = 1e-3  # learning rate on training start
+    lr: float = 1e-4  # learning rate on training start
     scheduler: str = None
     gradient_clip_algorithm: str = "norm"
     gradient_clip_val: float = 0.5
