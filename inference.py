@@ -39,9 +39,6 @@ def inference(checkpoint: Path, grid_shape=(4, 4), calculate_fid: bool = False, 
         # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
         gen_samples = model.generate_samples(grid_shape[0] * grid_shape[1], progress=progress)
 
-        if calculate_fid:
-            calculate_fid_loss(gen_samples, config, device, progress=progress)
-
     # save resulting pics
     fig, ax = plt.subplots(3, sharex='all', sharey='all', figsize=(10, 5))
     sampled_data = gen_samples.moveaxis(1, 0).flatten(1).cpu()
@@ -57,6 +54,10 @@ def inference(checkpoint: Path, grid_shape=(4, 4), calculate_fid: bool = False, 
     plt.imsave(folder_to_save.joinpath('final_pred.png'), gen_images)
     plt.show()
     print(f'Saved results at {folder_to_save}')
+
+    if calculate_fid:
+        with progress:
+            calculate_fid_loss(gen_samples, config, device, progress=progress)
 
 
 def load_model_and_config(checkpoint: Path, device: str):
@@ -86,12 +87,13 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
                                              num_workers=0)
     with progress:
         progress_bar_task = progress.add_task("[white]Adding real images to FID", total=len(val_loader))
-        for batch in val_loader:
+        for samples, cond in val_loader:
             progress.update(progress_bar_task, advance=1)
-            fid_metric.update(batch.to(device), real=True)
+            images = (samples.to(device) + 1) / 2
+            fid_metric.update(images, real=True)
 
     # generated images
-    fid_metric.update(gen_samples, real=False)
+    fid_metric.update((gen_samples.clamp(-1, 1) + 1) / 2, real=False)
 
     fid_loss = fid_metric.compute().item()
     print(f'FID loss: {fid_loss}')
@@ -99,9 +101,8 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 
 if __name__ == '__main__':
-    version = 1
     dataset = 'celeba'
+    version = 2
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset}/version_{version}/checkpoints/last.ckpt'))[-1])
 
-    inference(ckpt, calculate_fid=False, grid_shape=(4, 4), on_gpu=True)
-    # inference(model_version, dataset_name, calculate_fid=True, grid_shape=(2, 2), on_gpu=True)
+    inference(ckpt, calculate_fid=True, grid_shape=(16, 16), on_gpu=True)

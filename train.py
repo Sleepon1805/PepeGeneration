@@ -62,6 +62,7 @@ if __name__ == '__main__':
         # profiler=AdvancedProfiler(filename='profiler'),
         logger=logger,
         # num_sanity_val_steps=0,
+        # precision='16-mixed'
     )
 
     trainer.fit(

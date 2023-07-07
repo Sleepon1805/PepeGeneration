@@ -1,5 +1,5 @@
 import os
-import subprocess
+import git
 from dataclasses import dataclass
 from typing import Tuple
 
@@ -15,7 +15,7 @@ class Paths:
 @dataclass
 class Config:
     # git commit hash for logging
-    git_hash: str = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+    git_hash: str = git.Repo('.').head.commit.hexsha[:7] + '+' * git.Repo('.').is_dirty()
 
     # hparams
     batch_size: int = 32
@@ -46,3 +46,4 @@ class Config:
 
     # training params
     dataset_split: Tuple[float, float] = (0.8, 0.2)
+    num_logging_samples: int = 64

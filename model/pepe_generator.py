@@ -3,6 +3,7 @@ import torch
 import pickle
 from lightning import LightningModule
 from rich.progress import Progress
+from torchmetrics.image.fid import FrechetInceptionDistance
 
 from model.unet import UNetModel
 from model.diffusion import Diffusion
@@ -20,7 +21,7 @@ class PepeGenerator(LightningModule):
 
         self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
             torch.ones(config.batch_size), torch.ones(config.batch_size, config.condition_size)
-        self.save_hyperparameters()
+        self.save_hyperparameters(self.config.__dict__)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
@@ -52,10 +53,11 @@ class PepeGenerator(LightningModule):
         # save hparams
         with open(self.logger.log_dir + '/config.pkl', 'wb') as f:
             pickle.dump(self.config, f, pickle.HIGHEST_PROTOCOL)
+        self.logger.log_hyperparams(self.config.__dict__)
 
     def on_validation_end(self) -> None:
         if self.global_step > 0:  # to skip sanity check
-            self._log_images_and_dists()
+            self._log_images_dists_and_fid(num_samples=self.config.num_logging_samples)
 
     def forward(self, x, t, cond):
         return self.model(x, t, cond=cond)
@@ -73,9 +75,13 @@ class PepeGenerator(LightningModule):
         x = self.diffusion.denoise_images(x, t, predicted_noise)
         return x
 
+    """
+    Methods for inference and evaluation
+    """
+
     def generate_samples(self, num_images, progress: Progress, cond=None) -> torch.Tensor:
         torch.manual_seed(137)
-        progress.generating_progress_bar_id = progress.add_task("[white]Generating images",
+        progress.generating_progress_bar_id = progress.add_task(f"[white]Generating {num_images} images",
                                                                 total=self.config.diffusion_steps-1)
         # Generate samples from denoising process
         x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device)
@@ -91,7 +97,7 @@ class PepeGenerator(LightningModule):
 
     @staticmethod
     def generated_samples_to_images(gen_samples: torch.Tensor, grid_size=(4, 4)) -> np.ndarray:
-        assert gen_samples.shape[0] == grid_size[0] * grid_size[1]
+        gen_samples = gen_samples[:grid_size[0] * grid_size[1]]
 
         gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
         gen_samples = (gen_samples * 255).type(torch.uint8)
@@ -104,13 +110,27 @@ class PepeGenerator(LightningModule):
 
         return gen_samples
 
-    def _log_images_and_dists(self, grid_size=(3, 3)):
+    def calculate_fid(self, gen_samples: torch.Tensor):
+        fid_metric = FrechetInceptionDistance(feature=192, reset_real_features=False, normalize=True)
+
+        # add real images to fid
+        for samples, cond in self.trainer.val_dataloaders:
+            if fid_metric.real_features_num_samples > len(gen_samples):
+                break
+            images = (samples + 1) / 2
+            fid_metric.update(images, real=True)
+
+        fid_metric.update((gen_samples.cpu().clamp(-1, 1) + 1) / 2, real=False)
+        fid_loss = fid_metric.compute().item()
+        return fid_loss
+
+    def _log_images_dists_and_fid(self, num_samples=128, grid_size=(3, 3)):
         """
         Generate some images to log them and their distribution
         """
 
         with self.trainer.progress_bar_callback.progress as progress:
-            gen_samples = self.generate_samples(grid_size[0] * grid_size[1], progress)
+            gen_samples = self.generate_samples(num_samples, progress)
 
         # distributions
         self.logger.experiment.add_histogram('generated_distribution', gen_samples,
@@ -119,3 +139,7 @@ class PepeGenerator(LightningModule):
         # images
         images = self.generated_samples_to_images(gen_samples, grid_size)
         self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
+
+        # fid
+        fid_loss = self.calculate_fid(gen_samples)
+        self.logger.log_metrics({'fid_metric': fid_loss}, step=self.current_epoch)
