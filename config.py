@@ -18,7 +18,7 @@ class Config:
     git_hash: str = git.Repo('.').head.commit.hexsha[:7] + '+' * git.Repo('.').is_dirty()
 
     # hparams
-    batch_size: int = 32
+    batch_size: int = 64
     image_size: int = 64  # size of image NxN
     lr: float = 1e-4  # learning rate on training start
     scheduler: str = None
@@ -46,4 +46,4 @@ class Config:
 
     # training params
     dataset_split: Tuple[float, float] = (0.8, 0.2)
-    num_logging_samples: int = 64
+    num_logging_samples: int = 128
