@@ -6,9 +6,8 @@ from typing import Tuple
 
 @dataclass
 class Paths:
-    pepe_data_path: str = '/home/sleepon/data/PepeDataset/'
+    pepe_data_path: str = '/home/sleepon/data/TwitchPepeDataset/'
     celeba_data_path: str = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
-    twitch_emotes_data_path: str = '/home/sleepon/data/TwitchPepeDataset/'
     parsed_datasets: str = os.path.dirname(__file__) + '/dataset/parsed_data/'
 
 

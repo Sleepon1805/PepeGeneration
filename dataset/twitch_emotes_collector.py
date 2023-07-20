@@ -68,7 +68,7 @@ def check_emote_name(name: str):
 
 if __name__ == '__main__':
     from config import Paths
-    path = Paths().twitch_emotes_data_path
+    path = Paths().pepe_data_path
     collect_twitch_emotes(path)
 
     # import shutil

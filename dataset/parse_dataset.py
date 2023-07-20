@@ -21,16 +21,14 @@ class DataParser:
     @staticmethod
     def _init_data_paths(paths: Paths, dataset_name: str):
         # source data
-        if dataset_name == 'pepe':
-            source_data_path = paths.pepe_data_path
-        elif dataset_name == 'celeba':
+        if dataset_name == 'celeba':
             source_data_path = paths.celeba_data_path
-        elif dataset_name == 'twitch_emotes':
-            source_data_path = paths.twitch_emotes_data_path
+        elif dataset_name == 'pepe':
+            source_data_path = paths.pepe_data_path
             if not os.path.exists(source_data_path):
                 collect_twitch_emotes(source_data_path)
         else:
-            raise ValueError(f"dataset_name must be 'pepe', 'celeba' or 'twitch_emotes', got {dataset_name}")
+            raise ValueError(f"dataset_name must be 'pepe' or 'celeba', got {dataset_name}")
         assert os.path.exists(source_data_path), \
             f'Given path for source images {source_data_path} does not exist! Change it in config.py.'
 
@@ -60,7 +58,7 @@ class DataParser:
         self.db.write_lmdb_metadata(len(os.listdir(self.source_data_path)))
 
     def _parse_condition(self, filename: str):
-        if self.dataset_name in ('pepe', 'twitch_emotes'):
+        if self.dataset_name == 'pepe':
             if filename.endswith('.png'):
                 filename = filename[:-4]
             name = ''.join(i.lower() for i in filename if i.isalpha())  # take only letters in lower case
@@ -83,7 +81,6 @@ if __name__ == '__main__':
     dataset_names = [
         'pepe',
         'celeba',
-        'twitch_emotes'
     ]
     for dataset in dataset_names:
         dataparser = DataParser(Paths(), Config(), dataset_name=dataset)
