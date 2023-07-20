@@ -47,9 +47,9 @@ if __name__ == '__main__':
     # train the model
     callbacks = [
         RichProgressBar(leave=True),  # progression bar
-        # EarlyStopping(monitor='fid_metric', min_delta=0.0, patience=5, mode='min'),  # early stopping
-        # ModelCheckpoint(save_top_k=3, monitor='fid_metric', save_last=True,
-        #                 filename='{epoch:02d}-{val_loss:.4f}-{fid_metric:.2f}'),  # checkpointing
+        EarlyStopping(monitor='fid_metric', min_delta=0.0, patience=5, mode='min'),  # early stopping
+        ModelCheckpoint(save_top_k=3, monitor='fid_metric', save_last=True,
+                        filename='{epoch:02d}-{fid_metric:.2f}-{val_loss:.4f}'),  # checkpointing
         ModelSummary(max_depth=2),  # deeper model summary
         LearningRateMonitor(logging_interval='epoch'),  # LR in logger
     ]
@@ -62,7 +62,7 @@ if __name__ == '__main__':
         # profiler=AdvancedProfiler(filename='profiler'),
         logger=logger,
         # num_sanity_val_steps=0,
-        precision='16-mixed'
+        # precision='16-mixed'
     )
 
     trainer.fit(

@@ -15,10 +15,11 @@ class Paths:
 @dataclass
 class Config:
     # git commit hash for logging
-    git_hash: str = git.Repo('.').head.commit.hexsha[:7] + '+' * git.Repo('.').is_dirty()
+    git_hash: str = git.Repo('.', search_parent_directories=True).head.commit.hexsha[:7] \
+                    + '+' * git.Repo('.', search_parent_directories=True).is_dirty()
 
     # hparams
-    batch_size: int = 64
+    batch_size: int = 32
     image_size: int = 64  # size of image NxN
     lr: float = 1e-4  # learning rate on training start
     scheduler: str = None
@@ -46,4 +47,4 @@ class Config:
 
     # training params
     dataset_split: Tuple[float, float] = (0.8, 0.2)
-    num_logging_samples: int = 128
+    num_logging_samples: int = 64
