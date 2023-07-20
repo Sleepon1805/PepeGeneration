@@ -48,7 +48,7 @@ class PepeGenerator(LightningModule):
         loss = self._calculate_loss(batch)
         self.log("val_loss", loss)
 
-        if self.trainer.is_last_batch:
+        if batch_idx == 0 and self.global_step > 0:
             self._log_images_dists_and_fid(num_samples=self.config.num_logging_samples)
 
         return
