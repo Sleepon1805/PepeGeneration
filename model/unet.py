@@ -18,60 +18,63 @@ class UNetModel(LightningModule):
         self.in_channels = 3
         self.model_channels = [mult * self.init_channels for mult in self.channel_mult]
         self.out_channels = 3
-        self.time_embed_dim = self.init_channels * 4
+
+        self.time_embed_dim = self.init_channels
+        self.cond_embed_dim = self.init_channels * 3
+        self.embed_dim = self.time_embed_dim + self.cond_embed_dim
 
         self.time_embed = TimeEmbedding(self.init_channels, self.time_embed_dim)
-        self.condition_emb = ConditionEmbedding(self.init_channels, self.time_embed_dim, config.condition_size)
+        self.condition_emb = ConditionEmbedding(self.init_channels, self.cond_embed_dim, config.condition_size)
 
         # downsample layers
         self.init_conv = nn.Conv2d(self.in_channels, self.init_channels, 3, padding=1)
 
         self.downsample_0 = DownsampleLayer(
-            self.init_channels, self.time_embed_dim, self.model_channels[0],
+            self.init_channels, self.embed_dim, self.model_channels[0],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=False, use_downsample=True,
         )
         self.downsample_1 = DownsampleLayer(
-            self.model_channels[0], self.time_embed_dim, self.model_channels[1],
+            self.model_channels[0], self.embed_dim, self.model_channels[1],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=False, use_downsample=True,
         )
         self.downsample_2 = DownsampleLayer(
-            self.model_channels[1], self.time_embed_dim, self.model_channels[2],
+            self.model_channels[1], self.embed_dim, self.model_channels[2],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=True, use_downsample=True,
         )
         self.downsample_3 = DownsampleLayer(
-            self.model_channels[2], self.time_embed_dim, self.model_channels[3],
+            self.model_channels[2], self.embed_dim, self.model_channels[3],
             self.dropout, self.num_heads, self.conv_resample,
             use_attention=True, use_downsample=False,
         )
 
         # bottom of pyramid
-        self.bottom_block = PyramidBottomLayer(self.model_channels[3], self.time_embed_dim,
+        self.bottom_block = PyramidBottomLayer(self.model_channels[3], self.embed_dim,
                                                self.dropout, self.num_heads)
 
         # upsample layers
         self.upsample_3 = UpsampleLayer(
-            self.model_channels[3], self.time_embed_dim, self.model_channels[2],
+            self.model_channels[3], self.embed_dim, self.model_channels[2],
             sc_channels=(self.model_channels[3], self.model_channels[3], self.model_channels[2]),
             dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
             use_attention=True, use_upsample=True,
         )
         self.upsample_2 = UpsampleLayer(
-            self.model_channels[2], self.time_embed_dim, self.model_channels[1],
+            self.model_channels[2], self.embed_dim, self.model_channels[1],
             sc_channels=(self.model_channels[2], self.model_channels[2], self.model_channels[1]),
             dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
             use_attention=True, use_upsample=True,
         )
         self.upsample_1 = UpsampleLayer(
-            self.model_channels[1], self.time_embed_dim, self.model_channels[0],
+            self.model_channels[1], self.embed_dim, self.model_channels[0],
             sc_channels=(self.model_channels[1], self.model_channels[1], self.model_channels[0]),
             dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
             use_attention=False, use_upsample=True,
         )
         self.upsample_0 = UpsampleLayer(
-            self.model_channels[0], self.time_embed_dim, self.init_channels,
+            self.model_channels[0], self.embed_dim, self.init_channels,
             sc_channels=(self.model_channels[0], self.model_channels[0], self.init_channels),
             dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
             use_attention=False, use_upsample=False,
@@ -94,9 +97,9 @@ class UNetModel(LightningModule):
         :return: output - torch.Tensor with shape (B, C_color, H, W)
         """
 
-        emb = self.time_embed(timesteps)
-        if cond is not None:
-            emb += self.condition_emb(cond)
+        time_emb = self.time_embed(timesteps)
+        cond_emb = self.condition_emb(cond)
+        emb = torch.concat([time_emb, cond_emb], dim=-1)
 
         x = self.init_conv(x)
 
@@ -163,17 +166,17 @@ class ConditionEmbedding(nn.Module):
 
 
 class DownsampleLayer(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, dropout, num_heads, conv_resample,
+    def __init__(self, in_channels, emb_channels, out_channels, dropout, num_heads, conv_resample,
                  use_attention: bool, use_downsample: bool):
         super().__init__()
         self.use_attention = use_attention
         self.use_downsample = use_downsample
 
         self.res_0 = ResBlock(
-            in_channels, hidden_channels, dropout, out_channels,
+            in_channels, emb_channels, dropout, out_channels,
         )
         self.res_1 = ResBlock(
-            out_channels, hidden_channels, dropout, out_channels,
+            out_channels, emb_channels, dropout, out_channels,
         )
         if self.use_attention:
             self.attention_0 = AttentionBlock(
@@ -211,16 +214,16 @@ class DownsampleLayer(nn.Module):
 
 
 class PyramidBottomLayer(nn.Module):
-    def __init__(self, channels, hidden_channels, dropout, num_heads):
+    def __init__(self, channels, emb_channels, dropout, num_heads):
         super().__init__()
         self.res_0 = ResBlock(
-            channels, hidden_channels, dropout, out_channels=channels,
+            channels, emb_channels, dropout, out_channels=channels,
         )
         self.attention = AttentionBlock(
             channels, num_heads=num_heads
         )
         self.res_1 = ResBlock(
-            channels, hidden_channels, dropout, out_channels=channels,
+            channels, emb_channels, dropout, out_channels=channels,
         )
 
     def forward(self, x, emb):
@@ -236,7 +239,7 @@ class PyramidBottomLayer(nn.Module):
 
 
 class UpsampleLayer(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, sc_channels,
+    def __init__(self, in_channels, emb_channels, out_channels, sc_channels,
                  dropout, num_heads, conv_resample,
                  use_attention: bool, use_upsample: bool):
         super().__init__()
@@ -244,13 +247,13 @@ class UpsampleLayer(nn.Module):
         self.use_upsample = use_upsample
 
         self.res_0 = ResBlock(
-            in_channels + sc_channels[0], hidden_channels, dropout, out_channels,
+            in_channels + sc_channels[0], emb_channels, dropout, out_channels,
         )
         self.res_1 = ResBlock(
-            out_channels + sc_channels[1], hidden_channels, dropout, out_channels,
+            out_channels + sc_channels[1], emb_channels, dropout, out_channels,
         )
         self.res_2 = ResBlock(
-            out_channels + sc_channels[2], hidden_channels, dropout, out_channels,
+            out_channels + sc_channels[2], emb_channels, dropout, out_channels,
         )
         if self.use_attention:
             self.attention_0 = AttentionBlock(

@@ -78,14 +78,14 @@ class PepeGenerator(LightningModule):
     Methods for inference and evaluation
     """
 
-    def generate_samples(self, num_images, progress: Progress, cond=None) -> torch.Tensor:
-        torch.manual_seed(137)
+    def generate_samples(self, num_images, progress: Progress, cond=None, seed=137) -> torch.Tensor:
+        torch.manual_seed(seed)
         progress.generating_progress_bar_id = progress.add_task(f"[white]Generating {num_images} images",
                                                                 total=self.config.diffusion_steps-1)
         # Generate samples from denoising process
         x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device)
         sample_steps = torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
-        if cond is None and self.config.use_condition:
+        if cond is None:
             # create random condition
             cond = torch.bernoulli(torch.full((num_images, 40), 0.5, device=self.device)) * 2 - 1
         for t in sample_steps:

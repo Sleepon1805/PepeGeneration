@@ -27,7 +27,6 @@ class Config:
 
     # pretrained backbone and current dataset
     dataset_name: str = 'celeba'
-    use_condition: bool = True
     pretrained_ckpt: str = None
     # pretrained_ckpt: str = './lightning_logs/celeba/version_1/checkpoints/last.ckpt'
 
