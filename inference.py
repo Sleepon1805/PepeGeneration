@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import torchmetrics
 import pickle
 from pathlib import Path
+from typing import List
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
     MofNCompleteColumn
 
@@ -77,7 +78,7 @@ def load_model_and_config(checkpoint: Path, device: str):
 
 
 def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progress):
-    fid_metric = torchmetrics.image.fid.FrechetInceptionDistance(normalize=True).to(device)
+    fid_metric = torchmetrics.image.fid.FrechetInceptionDistance(feature=192, normalize=True).to(device)
 
     # real images
     dataset = PepeDataset(config.dataset_name, paths=Paths(), augments=None)
@@ -100,9 +101,91 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
     return fid_loss
 
 
+def gen_images_with_condition(checkpoint: Path, features: List[str], grid_size=(3, 3), on_gpu: bool = True):
+    if on_gpu and torch.cuda.is_available():
+        device = 'cuda'
+    else:
+        device = 'cpu'
+
+    all_cond_features = {
+        "5_o_Clock_Shadow": 0,
+        "Arched_Eyebrows": 1,
+        "Attractive": 2,
+        "Bags_Under_Eyes": 3,
+        "Bald": 4,
+        "Bangs": 5,
+        "Big_Lips": 6,
+        "Big_Nose": 7,
+        "Black_Hair": 8,
+        "Blond_Hair": 9,
+        "Blurry": 10,
+        "Brown_Hair": 11,
+        "Bushy_Eyebrows": 12,
+        "Chubby": 13,
+        "Double_Chin": 14,
+        "Eyeglasses": 15,
+        "Goatee": 16,
+        "Gray_Hair": 17,
+        "Heavy_Makeup": 18,
+        "High_Cheekbones": 19,
+        "Male": 20,
+        "Mouth_Slightly_Open": 21,
+        "Mustache": 22,
+        "Narrow_Eyes": 23,
+        "No_Beard": 24,
+        "Oval_Face": 25,
+        "Pale_Skin": 26,
+        "Pointy_Nose": 27,
+        "Receding_Hairline": 28,
+        "Rosy_Cheeks": 29,
+        "Sideburns": 30,
+        "Smiling": 31,
+        "Straight_Hair": 32,
+        "Wavy_Hair": 33,
+        "Wearing_Earrings": 34,
+        "Wearing_Hat": 35,
+        "Wearing_Lipstick": 36,
+        "Wearing_Necklace": 37,
+        "Wearing_Necktie": 38,
+        "Young": 39,
+    }
+
+# rich progress bar
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TimeElapsedColumn(),
+        TimeRemainingColumn()
+    )
+
+    model, config = load_model_and_config(checkpoint, device)
+
+    # condition
+    cond = torch.full((grid_size[0] * grid_size[1], 40), -1, device=device, dtype=torch.float32)
+    for feature in features:
+        if feature in all_cond_features.keys():
+            cond[:, all_cond_features[feature]] = 1
+
+    with progress:
+        # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
+        gen_samples = model.generate_samples(grid_size[0] * grid_size[1], cond=cond, progress=progress, seed=322)
+
+    gen_images = model.generated_samples_to_images(gen_samples, grid_size)
+
+    plt.imshow(gen_images)
+    plt.title(features)
+    plt.show()
+    print(f'Generated image for features = {features}')
+
+
 if __name__ == '__main__':
     dataset = 'celeba'
     version = 5
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset}/version_{version}/checkpoints/last.ckpt'))[-1])
 
-    inference(ckpt, calculate_fid=True, grid_shape=(16, 16), on_gpu=True)
+    # inference(ckpt, calculate_fid=True, grid_shape=(16, 16), on_gpu=True)
+
+    for condition in [[], ["Black_Hair"], ["Blond_Hair"], ["Black_Hair", "Blond_Hair"]]:
+        gen_images_with_condition(checkpoint=ckpt, features=condition, on_gpu=True)
