@@ -18,7 +18,7 @@ class Config:
                     + '+' * git.Repo('.', search_parent_directories=True).is_dirty()
 
     # hparams
-    batch_size: int = 32
+    batch_size: int = 64
     image_size: int = 64  # size of image NxN
     lr: float = 1e-4  # learning rate on training start
     scheduler: str = None

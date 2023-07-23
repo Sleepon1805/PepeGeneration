@@ -47,6 +47,9 @@ class PepeGenerator(LightningModule):
     def validation_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)
         self.log("val_loss", loss)
+
+        if batch_idx == 0 and self.global_step > 0:  # to skip sanity check
+            self._log_images_dists_and_fid(num_samples=self.config.num_logging_samples)
         return
 
     def on_train_start(self) -> None:
@@ -54,10 +57,6 @@ class PepeGenerator(LightningModule):
         with open(self.logger.log_dir + '/config.pkl', 'wb') as f:
             pickle.dump(self.config, f, pickle.HIGHEST_PROTOCOL)
         self.logger.log_hyperparams(self.config.__dict__)
-
-    def on_validation_end(self) -> None:
-        if self.global_step > 0:  # to skip sanity check
-            self._log_images_dists_and_fid(num_samples=self.config.num_logging_samples)
 
     def forward(self, x, t, cond):
         return self.model(x, t, cond=cond)
@@ -142,4 +141,4 @@ class PepeGenerator(LightningModule):
 
         # fid
         fid_loss = self.calculate_fid(gen_samples)
-        self.logger.log_metrics({'fid_metric': fid_loss}, step=self.current_epoch)
+        self.log('fid_metric', fid_loss)

@@ -102,7 +102,7 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 if __name__ == '__main__':
     dataset = 'celeba'
-    version = 2
+    version = 5
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset}/version_{version}/checkpoints/last.ckpt'))[-1])
 
     inference(ckpt, calculate_fid=True, grid_shape=(16, 16), on_gpu=True)
