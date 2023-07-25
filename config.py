@@ -27,8 +27,8 @@ class Config:
 
     # pretrained backbone and current dataset
     dataset_name: str = 'celeba'
-    pretrained_ckpt: str = None
-    # pretrained_ckpt: str = './lightning_logs/celeba/version_1/checkpoints/last.ckpt'
+    # pretrained_ckpt: str = None
+    pretrained_ckpt: str = './lightning_logs/celeba/version_6/checkpoints/last.ckpt'
 
     # gaussian noise hparams
     diffusion_steps: int = 1000

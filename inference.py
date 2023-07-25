@@ -170,7 +170,7 @@ def gen_images_with_condition(checkpoint: Path, features: List[str], grid_size=(
 
     with progress:
         # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
-        gen_samples = model.generate_samples(grid_size[0] * grid_size[1], cond=cond, progress=progress, seed=322)
+        gen_samples = model.generate_samples(grid_size[0] * grid_size[1], cond=cond, progress=progress, seed=137)
 
     gen_images = model.generated_samples_to_images(gen_samples, grid_size)
 
@@ -182,10 +182,10 @@ def gen_images_with_condition(checkpoint: Path, features: List[str], grid_size=(
 
 if __name__ == '__main__':
     dataset = 'celeba'
-    version = 5
+    version = 6
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset}/version_{version}/checkpoints/last.ckpt'))[-1])
 
-    # inference(ckpt, calculate_fid=True, grid_shape=(16, 16), on_gpu=True)
+    inference(ckpt, calculate_fid=True, grid_shape=(4, 4), on_gpu=True)
 
     for condition in [[], ["Black_Hair"], ["Blond_Hair"], ["Black_Hair", "Blond_Hair"]]:
         gen_images_with_condition(checkpoint=ckpt, features=condition, on_gpu=True)
