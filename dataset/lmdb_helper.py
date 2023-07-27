@@ -6,7 +6,7 @@ import zstandard
 
 
 class LMDBCreator:
-    def __init__(self, path, max_size=10e9):
+    def __init__(self, path, max_size=10e10):
         self.path = path
         self.max_size = int(max_size)
 

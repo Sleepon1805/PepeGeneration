@@ -1,22 +1,19 @@
-import os.path
-import pickle
-
-import torch
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+import os
 import lmdb
+import torch
+import pickle
 import zstandard
 from tqdm import tqdm
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
+from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader
 
 from config import Paths, Config
 
 
 class PepeDataset(Dataset):
-    """ Dogs with watermarks dataset. """
-
-    def __init__(self, dataset_name: str, paths: Paths, augments=None):
-        self.path = paths.parsed_datasets + dataset_name
+    def __init__(self, dataset_name: str, image_size: int, paths: Paths, augments=None):
+        self.path = paths.parsed_datasets + dataset_name + str(image_size)
         self.augmentations = augments
 
         self._init_database()
@@ -55,14 +52,30 @@ class PepeDataset(Dataset):
         # to tensor
         image = transforms.ToTensor()(image)
         image = 2 * image - 1
-        condition = torch.tensor(condition.astype('float32'))
+        condition = torch.from_numpy(condition.astype('float32'))
 
         return image, condition
+
+    @staticmethod
+    def show_item(item):
+        sample, condition = item
+
+        image = sample.numpy().transpose((1, 2, 0))
+        image = (image + 1) / 2
+
+        plt.imshow(image)
+        plt.title(condition)
+        plt.show()
+        print(condition)
 
 
 if __name__ == '__main__':
     cfg = Config()
-    dataset = PepeDataset(dataset_name='celeba', paths=Paths())
+    dataset = PepeDataset(dataset_name='celeba', image_size=cfg.image_size, paths=Paths())
+
+    one_item = dataset[137]
+    dataset.show_item(one_item)
+
     dataloader = DataLoader(dataset, batch_size=cfg.batch_size, num_workers=8)
     for batch in tqdm(dataloader, desc="Testing dataset... "):
         assert batch[0].shape[1:] == (3, cfg.image_size, cfg.image_size), batch[0].shape

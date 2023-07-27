@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 import pickle
-from lightning import LightningModule
+from typing import Tuple
 from rich.progress import Progress
+from lightning import LightningModule
 from torchmetrics.image.fid import FrechetInceptionDistance
 
 from model.unet import UNetModel
@@ -49,7 +50,7 @@ class PepeGenerator(LightningModule):
         self.log("val_loss", loss)
 
         if batch_idx == 0 and self.global_step > 0:  # to skip sanity check
-            self._log_images_dists_and_fid(num_samples=self.config.num_logging_samples)
+            self.log_generated_images(batch)
         return
 
     def on_train_start(self) -> None:
@@ -58,7 +59,7 @@ class PepeGenerator(LightningModule):
             pickle.dump(self.config, f, pickle.HIGHEST_PROTOCOL)
         self.logger.log_hyperparams(self.config.__dict__)
 
-    def forward(self, x, t, cond):
+    def forward(self, x, t, cond=None):
         return self.model(x, t, cond=cond)
 
     def _calculate_loss(self, batch):
@@ -69,33 +70,36 @@ class PepeGenerator(LightningModule):
         loss = self.loss_func(output, noise)
         return loss
 
-    def denoise_sample(self, x, t, cond):
-        predicted_noise = self.forward(x, t.repeat(x.shape[0]), cond)
-        x = self.diffusion.denoise_images(x, t, predicted_noise)
-        return x
-
     """
     Methods for inference and evaluation
     """
 
-    def generate_samples(self, num_images, progress: Progress, cond=None, seed=137) -> torch.Tensor:
+    def denoise_samples(self, x, t, cond=None):
+        predicted_noise = self.forward(x, t.repeat(x.shape[0]), cond)
+        x = self.diffusion.denoise_images(x, t, predicted_noise)
+        return x
+
+    def generate_samples(self, batch, progress: Progress = None, seed=42) -> torch.Tensor:
         torch.manual_seed(seed)
-        progress.generating_progress_bar_id = progress.add_task(f"[white]Generating {num_images} images",
-                                                                total=self.config.diffusion_steps-1)
+        images_batch, cond_batch = batch
+        if progress is not None:
+            progress.generating_progress_bar_id = progress.add_task(
+                f"[white]Generating {images_batch.shape[0]} images",
+                total=self.config.diffusion_steps-1
+            )
+
         # Generate samples from denoising process
-        x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device)
+        x = torch.randn_like(images_batch, device=self.device)
         sample_steps = torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
-        if cond is None:
-            # create random condition
-            cond = torch.bernoulli(torch.full((num_images, 40), 0.5, device=self.device)) * 2 - 1
         for t in sample_steps:
-            progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
-            progress.refresh()
-            x = self.denoise_sample(x, t, cond)
+            if progress is not None:
+                progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
+                progress.refresh()
+            x = self.denoise_samples(x, t, cond_batch)
         return x
 
     @staticmethod
-    def generated_samples_to_images(gen_samples: torch.Tensor, grid_size=(4, 4)) -> np.ndarray:
+    def generated_samples_to_images(gen_samples: torch.Tensor, grid_size: Tuple[int, int]) -> np.ndarray:
         gen_samples = gen_samples[:grid_size[0] * grid_size[1]]
 
         gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
@@ -109,27 +113,13 @@ class PepeGenerator(LightningModule):
 
         return gen_samples
 
-    def calculate_fid(self, gen_samples: torch.Tensor):
-        fid_metric = FrechetInceptionDistance(feature=192, reset_real_features=False, normalize=True)
-
-        # add real images to fid
-        for samples, cond in self.trainer.val_dataloaders:
-            if fid_metric.real_features_num_samples > len(gen_samples):
-                break
-            images = (samples + 1) / 2
-            fid_metric.update(images, real=True)
-
-        fid_metric.update((gen_samples.cpu().clamp(-1, 1) + 1) / 2, real=False)
-        fid_loss = fid_metric.compute().item()
-        return fid_loss
-
-    def _log_images_dists_and_fid(self, num_samples=128, grid_size=(3, 3)):
+    def log_generated_images(self, batch, grid_size=(4, 4)):
         """
-        Generate some images to log them and their distribution
+        Generate some images to log them, their distribution and FID metric
         """
 
         with self.trainer.progress_bar_callback.progress as progress:
-            gen_samples = self.generate_samples(num_samples, progress)
+            gen_samples = self.generate_samples(batch, progress)
 
         # distributions
         self.logger.experiment.add_histogram('generated_distribution', gen_samples,
@@ -142,3 +132,16 @@ class PepeGenerator(LightningModule):
         # fid
         fid_loss = self.calculate_fid(gen_samples)
         self.log('fid_metric', fid_loss)
+
+    def calculate_fid(self, gen_samples: torch.Tensor):
+        fid_metric = FrechetInceptionDistance(feature=192, reset_real_features=False, normalize=True)
+
+        # add real images to fid
+        first_val_batch = next(iter(self.trainer.val_dataloaders))
+        samples, conditions = first_val_batch
+        images = (samples + 1) / 2
+        fid_metric.update(images, real=True)
+
+        fid_metric.update((gen_samples.cpu().clamp(-1, 1) + 1) / 2, real=False)
+        fid_loss = fid_metric.compute().item()
+        return fid_loss

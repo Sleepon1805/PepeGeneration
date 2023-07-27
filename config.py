@@ -3,6 +3,13 @@ import git
 from dataclasses import dataclass
 from typing import Tuple
 
+HIGHRES_IMAGE_SIZE_MULT = 4
+
+
+def curr_git_hash():
+    repo = git.Repo('.', search_parent_directories=True)
+    return repo.head.commit.hexsha[:7] + '+' * repo.is_dirty()
+
 
 @dataclass
 class Paths:
@@ -14,8 +21,7 @@ class Paths:
 @dataclass
 class Config:
     # git commit hash for logging
-    git_hash: str = git.Repo('.', search_parent_directories=True).head.commit.hexsha[:7] \
-                    + '+' * git.Repo('.', search_parent_directories=True).is_dirty()
+    git_hash: str = curr_git_hash()
 
     # hparams
     batch_size: int = 64
@@ -27,8 +33,8 @@ class Config:
 
     # pretrained backbone and current dataset
     dataset_name: str = 'celeba'
-    # pretrained_ckpt: str = None
-    pretrained_ckpt: str = './lightning_logs/celeba/version_6/checkpoints/last.ckpt'
+    pretrained_ckpt: str = None
+    # pretrained_ckpt: str = './lightning_logs/celeba/version_6/checkpoints/last.ckpt'
 
     # gaussian noise hparams
     diffusion_steps: int = 1000
@@ -45,4 +51,3 @@ class Config:
 
     # training params
     dataset_split: Tuple[float, float] = (0.8, 0.2)
-    num_logging_samples: int = 64

@@ -7,6 +7,7 @@ from lightning.pytorch.profilers import AdvancedProfiler
 from lightning.pytorch.loggers import TensorBoardLogger
 
 from dataset.dataset import PepeDataset
+from dataset.parse_dataset import DataParser
 from model.pepe_generator import PepeGenerator
 from config import Paths, Config
 
@@ -14,13 +15,20 @@ if __name__ == '__main__':
     # don't forget to override environment variable HSA_OVERRIDE_GFX_VERSION=10.3.0 (for radeon rx 6700xt)
     torch.set_float32_matmul_precision('high')
     cfg = Config()
+    paths = Paths()
+
+    # parse training data
+    if paths.parsed_datasets + cfg.dataset_name + str(cfg.image_size):
+        print('Parsing lmdb dataset with images')
+        dataparser = DataParser(paths, cfg)
+        dataparser.parse_and_save_dataset()
 
     # set num_workers=0 to be able to debug properly
     debug_mode = hasattr(sys, 'gettrace') and sys.gettrace() is not None
     print(f'Running in debug mode: {str(debug_mode)}')
 
     # dataset
-    dataset = PepeDataset(cfg.dataset_name, paths=Paths(), augments=None)
+    dataset = PepeDataset(cfg.dataset_name, cfg.image_size, paths=Paths(), augments=None)
     train_set, val_set = torch.utils.data.random_split(dataset, cfg.dataset_split,
                                                        generator=torch.Generator().manual_seed(42))
 
