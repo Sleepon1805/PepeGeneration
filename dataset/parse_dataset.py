@@ -6,8 +6,8 @@ from pathlib import Path
 import pandas as pd
 
 from config import Paths, Config
-from lmdb_helper import LMDBCreator
-from twitch_emotes_collector import collect_twitch_emotes
+from dataset.lmdb_helper import LMDBCreator
+from dataset.twitch_emotes_collector import collect_twitch_emotes
 
 
 class DataParser:

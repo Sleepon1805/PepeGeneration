@@ -1,3 +1,4 @@
+import os
 import sys
 import torch
 import lightning as L
@@ -18,7 +19,7 @@ if __name__ == '__main__':
     paths = Paths()
 
     # parse training data
-    if paths.parsed_datasets + cfg.dataset_name + str(cfg.image_size):
+    if not os.path.exists(paths.parsed_datasets + cfg.dataset_name + str(cfg.image_size)):
         print('Parsing lmdb dataset with images')
         dataparser = DataParser(paths, cfg)
         dataparser.parse_and_save_dataset()
