@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from skimage.transform import downscale_local_mean
 
 from config import Paths, Config, HIGHRES_IMAGE_SIZE_MULT
-from dataset.dataset import PepeDataset
+from data.dataset import PepeDataset
 
 
 class HighResPepeDataset(PepeDataset):
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     dataset.show_item(one_item)
 
     dataloader = DataLoader(dataset, batch_size=cfg.batch_size, num_workers=8)
-    for batch in tqdm(dataloader, desc="Testing dataset... "):
+    for batch in tqdm(dataloader, desc="Testing data... "):
         assert batch[0].shape[1:] == (3, cfg.image_size * HIGHRES_IMAGE_SIZE_MULT,
                                       cfg.image_size * HIGHRES_IMAGE_SIZE_MULT), batch[0].shape
         assert batch[1].shape[1:] == (3, cfg.image_size, cfg.image_size), batch[1].shape

@@ -15,7 +15,7 @@ def curr_git_hash():
 class Paths:
     pepe_data_path: str = '/home/sleepon/data/TwitchPepeDataset/'
     celeba_data_path: str = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
-    parsed_datasets: str = os.path.dirname(__file__) + '/dataset/parsed_data/'
+    parsed_datasets: str = os.path.dirname(__file__) + '/data/parsed_data/'
 
 
 @dataclass

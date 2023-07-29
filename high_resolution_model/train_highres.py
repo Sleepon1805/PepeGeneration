@@ -8,7 +8,7 @@ from lightning.pytorch.loggers import TensorBoardLogger
 
 from high_resolution_model.highres_dataset import HighResPepeDataset
 from high_resolution_model.highres_pepe_generator import HighResPepeGenerator
-from dataset.parse_dataset import DataParser
+from data.parse_dataset import DataParser
 from config import Paths, Config
 
 if __name__ == '__main__':
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     debug_mode = hasattr(sys, 'gettrace') and sys.gettrace() is not None
     print(f'Running in debug mode: {str(debug_mode)}')
 
-    # dataset
+    # data
     dataset = HighResPepeDataset(cfg.dataset_name, cfg.image_size, paths=Paths(), augments=None)
     train_set, val_set = torch.utils.data.random_split(dataset, cfg.dataset_split,
                                                        generator=torch.Generator().manual_seed(42))

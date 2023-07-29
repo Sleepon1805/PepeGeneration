@@ -6,8 +6,8 @@ from pathlib import Path
 import pandas as pd
 
 from config import Paths, Config
-from dataset.lmdb_helper import LMDBCreator
-from dataset.twitch_emotes_collector import collect_twitch_emotes
+from data.lmdb_helper import LMDBCreator
+from data.twitch_emotes_collector import collect_twitch_emotes
 
 
 class DataParser:
@@ -83,7 +83,8 @@ if __name__ == '__main__':
     ]
     image_sizes = [
         64,
-        256
+        128,
+        256,
     ]
 
     cfg = Config()

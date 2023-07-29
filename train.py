@@ -7,8 +7,8 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.profilers import AdvancedProfiler
 from lightning.pytorch.loggers import TensorBoardLogger
 
-from dataset.dataset import PepeDataset
-from dataset.parse_dataset import DataParser
+from data.dataset import PepeDataset
+from data.parse_dataset import DataParser
 from model.pepe_generator import PepeGenerator
 from config import Paths, Config
 

@@ -12,7 +12,7 @@ from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn,
     MofNCompleteColumn
 
 from model.pepe_generator import PepeGenerator
-from dataset.dataset import PepeDataset
+from data.dataset import PepeDataset
 from config import Paths, Config
 
 
