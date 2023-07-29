@@ -48,6 +48,7 @@ class Config:
     num_heads: int = 1
     dropout: float = 0.3
     condition_size: int = 40
+    use_second_attention: bool = True
 
     # training params
     dataset_split: Tuple[float, float] = (0.8, 0.2)

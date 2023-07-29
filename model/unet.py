@@ -7,7 +7,7 @@ from config import Config
 
 
 class UNetModel(LightningModule):
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, in_channels=3):
         super().__init__()
         self.init_channels = config.init_channels
         self.channel_mult = config.channel_mult
@@ -15,7 +15,7 @@ class UNetModel(LightningModule):
         self.num_heads = config.num_heads
         self.dropout = config.dropout
 
-        self.in_channels = 3
+        self.in_channels = in_channels
         self.model_channels = [mult * self.init_channels for mult in self.channel_mult]
         self.out_channels = 3
 
@@ -42,7 +42,7 @@ class UNetModel(LightningModule):
         self.downsample_2 = DownsampleLayer(
             self.model_channels[1], self.embed_dim, self.model_channels[2],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=True, use_downsample=True,
+            use_attention=config.use_second_attention, use_downsample=True,
         )
         self.downsample_3 = DownsampleLayer(
             self.model_channels[2], self.embed_dim, self.model_channels[3],
@@ -65,7 +65,7 @@ class UNetModel(LightningModule):
             self.model_channels[2], self.embed_dim, self.model_channels[1],
             sc_channels=(self.model_channels[2], self.model_channels[2], self.model_channels[1]),
             dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
-            use_attention=True, use_upsample=True,
+            use_attention=config.use_second_attention, use_upsample=True,
         )
         self.upsample_1 = UpsampleLayer(
             self.model_channels[1], self.embed_dim, self.model_channels[0],
