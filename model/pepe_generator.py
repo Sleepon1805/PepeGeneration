@@ -20,8 +20,11 @@ class PepeGenerator(LightningModule):
 
         self.loss_func = torch.nn.MSELoss()
 
-        self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
-            torch.ones(config.batch_size), torch.ones(config.batch_size, config.condition_size)
+        self.example_input_array = (
+            torch.Tensor(config.batch_size, 3, config.image_size, config.image_size),
+            torch.ones(config.batch_size),
+            torch.ones(config.batch_size, config.condition_size)
+        )
         self.save_hyperparameters(self.config.__dict__)
 
     def configure_optimizers(self):
@@ -138,7 +141,7 @@ class PepeGenerator(LightningModule):
 
         # add real images to fid
         first_val_batch = next(iter(self.trainer.val_dataloaders))
-        samples, conditions = first_val_batch
+        samples = first_val_batch[0]
         images = (samples + 1) / 2
         fid_metric.update(images, real=True)
 
