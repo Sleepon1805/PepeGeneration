@@ -48,6 +48,7 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid
     if condition is not None:
         cond_str = '-'.join(condition)
         cond_batch = decode_condition(config.dataset_name, condition, cond_size, device)
+        print(f'Generating images for condition {cond_str}')
     else:
         cond_str = 'RNG'
         cond_batch = torch.bernoulli(torch.full(cond_size, 0.5, device=device)) * 2 - 1
@@ -69,14 +70,16 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid
         ax[0].hist(sampled_data[0], bins=100, color='red')
         ax[1].hist(sampled_data[1], bins=100, color='green')
         ax[2].hist(sampled_data[2], bins=100, color='blue')
-        plt.savefig(folder_to_save.joinpath(f'distribution-{cond_str}.png'))
+        # plt.savefig(folder_to_save.joinpath(f'distribution-{cond_str}.png'))
         plt.show()
 
-        # save generated images
-        plt.imshow(gen_images)
+    # save generated images
+    plt.imshow(gen_images)
+    if save_images:
         plt.imsave(folder_to_save.joinpath(f'final_pred-{cond_str}.png'), gen_images)
-        plt.show()
-        print(f'Saved results at {folder_to_save}')
+    plt.title(cond_str)
+    plt.show()
+    print(f'Saved results at {folder_to_save}')
 
     if calculate_fid:
         with progress:
@@ -188,14 +191,23 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 if __name__ == '__main__':
     dataset_name = 'celeba'
-    version = 6
+    version = 8
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/last.ckpt'))[-1])
 
-    for features in [[], ["Male"], ["Wearing_Hat"], ["Male", "Wearing_Hat"]]:
+    inference(
+        ckpt,
+        condition=None,
+        grid_shape=(4, 4),
+        calculate_fid=True,
+        save_images=True,
+        on_gpu=True
+    )
+
+    for features in [[], ["Male"], ["Eyeglasses"], ["Male", "Eyeglasses"]]:
         inference(
             ckpt,
             condition=features,
-            grid_shape=(4, 4),
+            grid_shape=(3, 3),
             calculate_fid=True,
             save_images=False,
             on_gpu=True
