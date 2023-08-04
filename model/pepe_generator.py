@@ -5,6 +5,7 @@ from typing import Tuple
 from rich.progress import Progress
 from lightning import LightningModule
 from torchmetrics.image.fid import FrechetInceptionDistance
+from torchmetrics.image.inception import InceptionScore
 
 from model.unet import UNetModel
 from model.diffusion import Diffusion
@@ -33,7 +34,7 @@ class PepeGenerator(LightningModule):
             print('No scheduler')
             return optimizer
         elif self.config.scheduler.lower() == 'multisteplr':
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, gamma=0.1, milestones=(10, 20, 30),
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, gamma=0.1, milestones=(5, ),
                                                              verbose=False)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler}}
         elif self.config.scheduler.lower() == 'reducelronplateau':
@@ -116,7 +117,7 @@ class PepeGenerator(LightningModule):
 
         return gen_samples
 
-    def log_generated_images(self, batch, grid_size=(4, 4)):
+    def log_generated_images(self, batch, grid_size=(3, 3)):
         """
         Generate some images to log them, their distribution and FID metric
         """
@@ -125,16 +126,20 @@ class PepeGenerator(LightningModule):
             gen_samples = self.generate_samples(batch, progress)
 
         # distributions
-        self.logger.experiment.add_histogram('generated_distribution', gen_samples,
+        self.logger.experiment.add_histogram('generated_distribution', gen_samples.clip(-10, 10),
                                              global_step=self.current_epoch)
 
         # images
         images = self.generated_samples_to_images(gen_samples, grid_size)
         self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
 
-        # fid
+        # Frechet Inception Distance
         fid_loss = self.calculate_fid(gen_samples)
         self.log('fid_metric', fid_loss)
+
+        # Inception Score
+        inception_score = self.calculate_inception_score(gen_samples)
+        self.log('inception_score', inception_score)
 
     def calculate_fid(self, gen_samples: torch.Tensor):
         fid_metric = FrechetInceptionDistance(feature=192, reset_real_features=False, normalize=True)
@@ -148,3 +153,11 @@ class PepeGenerator(LightningModule):
         fid_metric.update((gen_samples.cpu().clamp(-1, 1) + 1) / 2, real=False)
         fid_loss = fid_metric.compute().item()
         return fid_loss
+
+    @staticmethod
+    def calculate_inception_score(gen_samples: torch.Tensor):
+        inception_score = InceptionScore(normalize=True)
+
+        inception_score.update((gen_samples.cpu().clamp(-1, 1) + 1) / 2)
+        inception_score = inception_score.compute()[0].item()
+        return inception_score
