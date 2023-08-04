@@ -191,24 +191,24 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 if __name__ == '__main__':
     dataset_name = 'celeba'
-    version = 8
+    version = 10
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/last.ckpt'))[-1])
 
     inference(
         ckpt,
         condition=None,
         grid_shape=(4, 4),
-        calculate_fid=True,
+        calculate_fid=False,
         save_images=True,
         on_gpu=True
     )
 
-    for features in [[], ["Male"], ["Eyeglasses"], ["Male", "Eyeglasses"]]:
-        inference(
-            ckpt,
-            condition=features,
-            grid_shape=(3, 3),
-            calculate_fid=True,
-            save_images=False,
-            on_gpu=True
-        )
+    # for features in [[], ["Male"], ["Eyeglasses"], ["Male", "Eyeglasses"]]:
+    #     inference(
+    #         ckpt,
+    #         condition=features,
+    #         grid_shape=(3, 3),
+    #         calculate_fid=True,
+    #         save_images=False,
+    #         on_gpu=True
+    #     )
