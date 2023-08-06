@@ -1,19 +1,17 @@
 import os
 import glob
-
-import numpy as np
 import torch
-import matplotlib.pyplot as plt
-import torchmetrics
 import pickle
+import torchmetrics
 from pathlib import Path
-from typing import List
+import matplotlib.pyplot as plt
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
     MofNCompleteColumn
 
-from model.pepe_generator import PepeGenerator
-from data.dataset import PepeDataset
 from config import Paths, Config
+from data.dataset import PepeDataset
+from model.pepe_generator import PepeGenerator
+from data.condition_utils import encode_condition
 
 
 def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid=False, save_images=True, on_gpu=True):
@@ -38,24 +36,8 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid
 
     model, config = load_model_and_config(checkpoint, device)
 
-    # decode conditions
-    if dataset_name == 'celeba':
-        cond_size = (grid_shape[0] * grid_shape[1], config.condition_size)
-    elif dataset_name == 'pepe':
-        cond_size = (grid_shape[0] * grid_shape[1], 26, config.condition_size)
-    else:
-        raise ValueError
-    if condition is not None:
-        cond_str = '-'.join(condition)
-        cond_batch = decode_condition(config.dataset_name, condition, cond_size, device)
-        print(f'Generating images for condition {cond_str}')
-    else:
-        cond_str = 'RNG'
-        cond_batch = torch.bernoulli(torch.full(cond_size, 0.5, device=device)) * 2 - 1
-
-    # fake batch
-    fake_image_batch = torch.zeros((grid_shape[0] * grid_shape[1], 3, config.image_size, config.image_size))
-    fake_batch = (fake_image_batch, cond_batch)
+    # get fake batch with zero'ed images and encoded condition
+    fake_batch = create_fake_batch(condition, grid_shape[0] * grid_shape[1], config)
 
     # generate images
     with progress:
@@ -76,8 +58,8 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid
     # save generated images
     plt.imshow(gen_images)
     if save_images:
-        plt.imsave(folder_to_save.joinpath(f'final_pred-{cond_str}.png'), gen_images)
-    plt.title(cond_str)
+        plt.imsave(folder_to_save.joinpath(f'final_pred.png'), gen_images)
+    plt.title(condition)
     plt.show()
     print(f'Saved results at {folder_to_save}')
 
@@ -102,67 +84,26 @@ def load_model_and_config(checkpoint: Path, device: str):
     return model, config
 
 
-def decode_condition(dataset: str, condition, cond_size, device) -> torch.Tensor:
-    if dataset == 'pepe':
-        assert isinstance(condition, str)
-        name = ''.join(i.lower() for i in condition if i.isalpha())  # take only letters in lower case
-        enum_letter = (lambda s: ord(s) - 97)  # enumerate lower case letters from 0 to 25
-        decoded_cond = np.zeros(cond_size)
-        for i, letter in enumerate(name):
-            decoded_cond[enum_letter(letter), i] = 1
-    elif dataset == 'celeba':
-        assert isinstance(condition, list)
-        all_cond_features = {
-            "5_o_Clock_Shadow": 0,
-            "Arched_Eyebrows": 1,
-            "Attractive": 2,
-            "Bags_Under_Eyes": 3,
-            "Bald": 4,
-            "Bangs": 5,
-            "Big_Lips": 6,
-            "Big_Nose": 7,
-            "Black_Hair": 8,
-            "Blond_Hair": 9,
-            "Blurry": 10,
-            "Brown_Hair": 11,
-            "Bushy_Eyebrows": 12,
-            "Chubby": 13,
-            "Double_Chin": 14,
-            "Eyeglasses": 15,
-            "Goatee": 16,
-            "Gray_Hair": 17,
-            "Heavy_Makeup": 18,
-            "High_Cheekbones": 19,
-            "Male": 20,
-            "Mouth_Slightly_Open": 21,
-            "Mustache": 22,
-            "Narrow_Eyes": 23,
-            "No_Beard": 24,
-            "Oval_Face": 25,
-            "Pale_Skin": 26,
-            "Pointy_Nose": 27,
-            "Receding_Hairline": 28,
-            "Rosy_Cheeks": 29,
-            "Sideburns": 30,
-            "Smiling": 31,
-            "Straight_Hair": 32,
-            "Wavy_Hair": 33,
-            "Wearing_Earrings": 34,
-            "Wearing_Hat": 35,
-            "Wearing_Lipstick": 36,
-            "Wearing_Necklace": 37,
-            "Wearing_Necktie": 38,
-            "Young": 39,
-        }
-
-        decoded_cond = torch.full(cond_size, -1, device=device, dtype=torch.float32)
-        for feature in condition:
-            if feature in all_cond_features.keys():
-                decoded_cond[..., all_cond_features[feature]] = 1
+def create_fake_batch(condition, num_samples, config):
+    # decode conditions
+    if condition is None:
+        print('Got no condition. Taking conditions from first val batch.')
+        dataset = PepeDataset(config.dataset_name, config.image_size, paths=Paths(), augments=None)
+        train_set, val_set = torch.utils.data.random_split(dataset, config.dataset_split,
+                                                           generator=torch.Generator().manual_seed(137))
+        val_loader = torch.utils.data.DataLoader(val_set, batch_size=num_samples, pin_memory=True,
+                                                 num_workers=0)
+        cond_batch = next(iter(val_loader))[1]
     else:
-        raise ValueError
+        print(f'Generating images for condition {condition}')
+        encoded_cond = encode_condition(config.dataset_name, condition)
+        encoded_cond = torch.from_numpy(encoded_cond)
+        cond_batch = torch.repeat_interleave(encoded_cond, num_samples, dim=0)
 
-    return decoded_cond
+    # fake batch
+    fake_image_batch = torch.zeros((num_samples, 3, config.image_size, config.image_size))
+    fake_batch = (fake_image_batch, cond_batch)
+    return fake_batch
 
 
 def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progress):
@@ -198,17 +139,17 @@ if __name__ == '__main__':
         ckpt,
         condition=None,
         grid_shape=(4, 4),
-        calculate_fid=False,
+        calculate_fid=True,
         save_images=True,
         on_gpu=True
     )
 
-    # for features in [[], ["Male"], ["Eyeglasses"], ["Male", "Eyeglasses"]]:
-    #     inference(
-    #         ckpt,
-    #         condition=features,
-    #         grid_shape=(3, 3),
-    #         calculate_fid=True,
-    #         save_images=False,
-    #         on_gpu=True
-    #     )
+    for features in [[], ["Male"], ["Eyeglasses"], ["Male", "Eyeglasses"]]:
+        inference(
+            ckpt,
+            condition=features,
+            grid_shape=(3, 3),
+            calculate_fid=False,
+            save_images=False,
+            on_gpu=True
+        )

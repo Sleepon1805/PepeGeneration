@@ -1,6 +1,5 @@
 import os
 import cv2
-import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 import pandas as pd
@@ -8,13 +7,14 @@ import pandas as pd
 from config import Paths, Config
 from data.lmdb_helper import LMDBCreator
 from data.twitch_emotes_collector import collect_twitch_emotes
+from data.condition_utils import CONDITION_SIZE, encode_condition
 
 
 class DataParser:
     def __init__(self, paths: Paths, config: Config):
         self.dataset_name = config.dataset_name
         self.image_size = (config.image_size, config.image_size)
-        self.cond_size = config.condition_size
+        self.cond_size = CONDITION_SIZE
         self.source_data_path, self.save_path = self._init_data_paths(paths)
         self.db = LMDBCreator(self.save_path)  # lmdb
 
@@ -61,10 +61,7 @@ class DataParser:
             if filename.endswith('.png'):
                 filename = filename[:-4]
             name = ''.join(i.lower() for i in filename if i.isalpha())  # take only letters in lower case
-            enum_letter = (lambda s: ord(s) - 97)  # enumerate lower case letters from 0 to 25
-            one_hot_cond = np.zeros((26, self.cond_size))
-            for i, letter in enumerate(name):
-                one_hot_cond[enum_letter(letter), i] = 1
+            one_hot_cond = encode_condition('pepe', name)
             return one_hot_cond
         elif self.dataset_name == 'celeba':
             if not hasattr(self, 'attributes_df'):

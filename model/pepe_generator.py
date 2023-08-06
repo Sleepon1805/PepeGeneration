@@ -86,6 +86,7 @@ class PepeGenerator(LightningModule):
     def generate_samples(self, batch, progress: Progress = None, seed=42) -> torch.Tensor:
         torch.manual_seed(seed)
         images_batch, cond_batch = batch
+        cond_batch = cond_batch.to(self.device)
         if progress is not None:
             progress.generating_progress_bar_id = progress.add_task(
                 f"[white]Generating {images_batch.shape[0]} images",
@@ -125,13 +126,13 @@ class PepeGenerator(LightningModule):
         with self.trainer.progress_bar_callback.progress as progress:
             gen_samples = self.generate_samples(batch, progress)
 
-        # distributions
-        self.logger.experiment.add_histogram('generated_distribution', gen_samples.clip(-10, 10),
-                                             global_step=self.current_epoch)
-
         # images
         images = self.generated_samples_to_images(gen_samples, grid_size)
         self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
+
+        # distributions
+        self.logger.experiment.add_histogram('generated_distribution', gen_samples.clip(-10, 10),
+                                             global_step=self.current_epoch)
 
         # Frechet Inception Distance
         fid_loss = self.calculate_fid(gen_samples)

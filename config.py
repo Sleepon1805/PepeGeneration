@@ -48,5 +48,4 @@ class Config:
     conv_resample: bool = True
     num_heads: int = 1
     dropout: float = 0.3
-    condition_size: int = 40
     use_second_attention: bool = True

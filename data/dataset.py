@@ -9,10 +9,12 @@ from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 
 from config import Paths, Config
+from data.condition_utils import decode_condition
 
 
 class PepeDataset(Dataset):
     def __init__(self, dataset_name: str, image_size: int, paths: Paths, augments=None):
+        self.dataset_name = dataset_name
         self.path = paths.parsed_datasets + dataset_name + str(image_size)
         self.augmentations = augments
 
@@ -56,17 +58,17 @@ class PepeDataset(Dataset):
 
         return image, condition
 
-    @staticmethod
-    def show_item(item):
+    def show_item(self, item):
         sample, condition = item
 
         image = sample.numpy().transpose((1, 2, 0))
         image = (image + 1) / 2
 
+        features = decode_condition(self.dataset_name, condition)
+
         plt.imshow(image)
-        plt.title(condition)
+        plt.title(features)
         plt.show()
-        print(condition)
 
 
 if __name__ == '__main__':

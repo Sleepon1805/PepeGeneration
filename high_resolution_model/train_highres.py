@@ -18,7 +18,6 @@ if __name__ == '__main__':
         init_channels=32,
         batch_size=16,
         use_second_attention=False,
-        pretrained_ckpt='/home/sleepon/repos/PepeGenerator/lightning_logs/highres_celeba/version_0/checkpoints/last.ckpt'
     )
     paths = Paths()
 

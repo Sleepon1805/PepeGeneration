@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from skimage.transform import downscale_local_mean
 
 from config import Paths, Config, HIGHRES_IMAGE_SIZE_MULT
-from data.dataset import PepeDataset
+from data.dataset import PepeDataset, decode_condition
 
 
 class HighResPepeDataset(PepeDataset):
@@ -21,8 +21,7 @@ class HighResPepeDataset(PepeDataset):
 
         return highres_image, lowres_image, condition
 
-    @staticmethod
-    def show_item(item):
+    def show_item(self, item):
         highres_sample, lowres_sample, condition = item
 
         highres_image = highres_sample.numpy().transpose((1, 2, 0))
@@ -30,12 +29,13 @@ class HighResPepeDataset(PepeDataset):
         lowres_image = lowres_sample.numpy().transpose((1, 2, 0))
         lowres_image = (lowres_image + 1) / 2
 
+        features = decode_condition(self.dataset_name, condition)
+
         fig, axs = plt.subplots(1, 2)
         axs[0].imshow(highres_image)
         axs[1].imshow(lowres_image)
-        fig.suptitle(condition)
+        fig.suptitle(features)
         plt.show()
-        print(condition)
 
 
 if __name__ == '__main__':
