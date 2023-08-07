@@ -29,6 +29,12 @@ class UNetModel(LightningModule):
         # downsample layers
         self.init_conv = nn.Conv2d(self.in_channels, self.init_channels, 3, padding=1)
 
+        self.extra_downsample = DownsampleLayer(
+            self.init_channels, self.embed_dim, self.init_channels,
+            self.dropout, self.num_heads, self.conv_resample,
+            use_attention=False, use_downsample=True,
+        )
+
         self.downsample_0 = DownsampleLayer(
             self.init_channels, self.embed_dim, self.model_channels[0],
             self.dropout, self.num_heads, self.conv_resample,
@@ -77,6 +83,12 @@ class UNetModel(LightningModule):
             self.model_channels[0], self.embed_dim, self.init_channels,
             sc_channels=(self.model_channels[0], self.model_channels[0], self.init_channels),
             dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
+            use_attention=False, use_upsample=True,
+        )
+        self.extra_upsample = UpsampleLayer(
+            self.init_channels, self.embed_dim, self.init_channels,
+            sc_channels=(self.init_channels, self.init_channels, self.init_channels),
+            dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
             use_attention=False, use_upsample=False,
         )
 
@@ -103,21 +115,23 @@ class UNetModel(LightningModule):
 
         x = self.init_conv(x)
 
-        down_0 = self.downsample_0(x, emb)
+        extra_down = self.extra_downsample(x, emb)
+        down_0 = self.downsample_0(extra_down[-1], emb)
         down_1 = self.downsample_1(down_0[-1], emb)
         down_2 = self.downsample_2(down_1[-1], emb)
         down_3 = self.downsample_3(down_2[-1], emb)
 
         bottom = self.bottom_block(down_3[-1], emb)
 
-        all_scs = (x,) + down_0 + down_1 + down_2 + down_3
+        all_scs = (x,) + extra_down + down_0 + down_1 + down_2 + down_3
 
-        up_3 = self.upsample_3(bottom, all_scs[9:12], emb)
-        up_2 = self.upsample_2(up_3, all_scs[6:9], emb)
-        up_1 = self.upsample_1(up_2, all_scs[3:6], emb)
-        up_0 = self.upsample_0(up_1, all_scs[0:3], emb)
+        up_3 = self.upsample_3(bottom, all_scs[12:15], emb)
+        up_2 = self.upsample_2(up_3, all_scs[9:12], emb)
+        up_1 = self.upsample_1(up_2, all_scs[6:9], emb)
+        up_0 = self.upsample_0(up_1, all_scs[3:6], emb)
+        extra_up = self.extra_upsample(up_0, all_scs[0:3], emb)
 
-        out = self.out(up_0)
+        out = self.out(extra_up)
         return out
 
 
