@@ -44,7 +44,7 @@ if __name__ == '__main__':
         model = PepeGenerator(cfg)
     else:
         checkpoint = cfg.pretrained_ckpt
-        model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg)
+        model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg, strict=False)
         model.config = cfg
     # model = torch.compile(model)
 

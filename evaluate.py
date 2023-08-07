@@ -19,10 +19,7 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid
     if not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)
 
-    if on_gpu and torch.cuda.is_available():
-        device = 'cuda'
-    else:
-        device = 'cpu'
+    device = 'cuda' if (on_gpu and torch.cuda.is_available()) else 'cpu'
 
     # rich progress bar
     progress = Progress(
@@ -139,8 +136,17 @@ if __name__ == '__main__':
         ckpt,
         condition=None,
         grid_shape=(4, 4),
-        calculate_fid=True,
+        calculate_fid=False,
         save_images=True,
+        on_gpu=True
+    )
+
+    inference(
+        ckpt,
+        condition=None,
+        grid_shape=(16, 16),
+        calculate_fid=True,
+        save_images=False,
         on_gpu=True
     )
 

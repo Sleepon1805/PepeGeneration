@@ -7,14 +7,14 @@ import pandas as pd
 from config import Paths, Config
 from data.lmdb_helper import LMDBCreator
 from data.twitch_emotes_collector import collect_twitch_emotes
-from data.condition_utils import CONDITION_SIZE, encode_condition
+from data.condition_utils import encode_condition
 
 
 class DataParser:
     def __init__(self, paths: Paths, config: Config):
         self.dataset_name = config.dataset_name
         self.image_size = (config.image_size, config.image_size)
-        self.cond_size = CONDITION_SIZE
+        self.cond_size = config.condition_size
         self.source_data_path, self.save_path = self._init_data_paths(paths)
         self.db = LMDBCreator(self.save_path)  # lmdb
 

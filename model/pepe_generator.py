@@ -131,8 +131,11 @@ class PepeGenerator(LightningModule):
         self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
 
         # distributions
-        self.logger.experiment.add_histogram('generated_distribution', gen_samples.clip(-10, 10),
-                                             global_step=self.current_epoch)
+        try:
+            self.logger.experiment.add_histogram('generated_distribution', gen_samples.clip(-10, 10),
+                                                 global_step=self.current_epoch)
+        except:
+            print('Could not log histogram')
 
         # Frechet Inception Distance
         fid_loss = self.calculate_fid(gen_samples)
