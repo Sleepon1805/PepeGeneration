@@ -26,8 +26,8 @@ class Config:
     git_hash: str = curr_git_hash()
 
     # training params
-    batch_size: int = 16
-    image_size: int = 128  # size of image NxN
+    batch_size: int = 64
+    image_size: int = 64  # size of image NxN
     lr: float = 1e-4  # learning rate on training start
     scheduler: str = 'MultiStepLR'
     gradient_clip_algorithm: str = "norm"
@@ -37,8 +37,8 @@ class Config:
     # pretrained backbone and current dataset
     dataset_name: str = 'celeba'
     condition_size: int = CONDITION_SIZE
-    # pretrained_ckpt: str = None
-    pretrained_ckpt: str = './lightning_logs/celeba/version_10/checkpoints/last.ckpt'
+    pretrained_ckpt: str = None
+    # pretrained_ckpt: str = './lightning_logs/celeba/version_6/checkpoints/last.ckpt'
 
     # gaussian noise hparams
     diffusion_steps: int = 4000
