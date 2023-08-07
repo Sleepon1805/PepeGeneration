@@ -3,6 +3,24 @@ import abc
 import torch
 import numpy as np
 
+from config import Config
+
+
+def get_sde(sde_name, config: Config):
+    if sde_name.lower() == 'vesde':
+        sde = VESDE(sigma_min=config.sigma_min, sigma_max=config.sigma_max, N=config.num_scales)
+        sampling_eps = 1e-5
+    elif sde_name.lower() == 'vpsde':
+        sde = VPSDE(beta_min=config.beta_min, beta_max=config.beta_max, N=config.num_scales)
+        sampling_eps = 1e-3
+    elif sde_name.lower() == 'subvpsde':
+        sde = subVPSDE(beta_min=config.beta_min, beta_max=config.beta_max, N=config.num_scales)
+        sampling_eps = 1e-3
+    else:
+        raise ValueError
+
+    return sde, sampling_eps
+
 
 class SDE(abc.ABC):
     """ SDE abstract class. Functions are designed for a mini-batch of inputs. """
@@ -111,7 +129,7 @@ class SDE(abc.ABC):
 
 
 class VPSDE(SDE):
-    def __init__(self, beta_min=0.1, beta_max=20, N=1000):
+    def __init__(self, beta_min=0.1, beta_max=20., N=1000):
         """
         Construct a Variance Preserving SDE.
 
@@ -147,6 +165,7 @@ class VPSDE(SDE):
         return mean, std
 
     def prior_sampling(self, shape):
+        torch.manual_seed(137)
         return torch.randn(*shape)
 
     def prior_logp(self, z):
@@ -167,7 +186,7 @@ class VPSDE(SDE):
 
 
 class subVPSDE(SDE):
-    def __init__(self, beta_min=0.1, beta_max=20, N=1000):
+    def __init__(self, beta_min=0.1, beta_max=20., N=1000):
         """
         Construct the sub-VP SDE that excels at likelihoods.
 
@@ -199,6 +218,7 @@ class subVPSDE(SDE):
         return mean, std
 
     def prior_sampling(self, shape):
+        torch.manual_seed(137)
         return torch.randn(*shape)
 
     def prior_logp(self, z):
@@ -208,7 +228,7 @@ class subVPSDE(SDE):
 
 
 class VESDE(SDE):
-    def __init__(self, sigma_min=0.01, sigma_max=50, N=1000):
+    def __init__(self, sigma_min=0.01, sigma_max=50., N=1000):
         """
         Construct a Variance Exploding SDE.
 
@@ -240,6 +260,7 @@ class VESDE(SDE):
         return mean, std
 
     def prior_sampling(self, shape):
+        torch.manual_seed(137)
         return torch.randn(*shape) * self.sigma_max
 
     def prior_logp(self, z):

@@ -55,5 +55,4 @@ class Config:
 
     # SDE sampling params
     continuous_training: bool = False
-    sde_type: str = 'VPSDE'
-    num_scales: int = 1000
+    num_scales: int = 4000
