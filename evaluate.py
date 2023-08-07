@@ -65,7 +65,7 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid
             calculate_fid_loss(gen_samples, config, device, progress=progress)
 
 
-def load_model_and_config(checkpoint: Path, device: str):
+def load_model_and_config(checkpoint: Path, device: str) -> (PepeGenerator, Config):
     print(f'Loaded model from {checkpoint}')
 
     with open(checkpoint.parents[1].joinpath('config.pkl'), 'rb') as config_file:

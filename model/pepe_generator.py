@@ -64,6 +64,9 @@ class PepeGenerator(LightningModule):
         self.logger.log_hyperparams(self.config.__dict__)
 
     def forward(self, x, t, cond=None):
+        if cond is None:
+            cond = torch.bernoulli(torch.full((x.shape[0], self.config.condition_size),
+                                              0.5, device=self.device)) * 2 - 1
         return self.model(x, t, cond=cond)
 
     def _calculate_loss(self, batch):

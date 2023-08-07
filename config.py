@@ -52,3 +52,8 @@ class Config:
     num_heads: int = 1
     dropout: float = 0.3
     use_second_attention: bool = True
+
+    # SDE sampling params
+    continuous_training: bool = False
+    sde_type: str = 'VPSDE'
+    num_scales: int = 1000
