@@ -72,7 +72,9 @@ class PepeGenerator(LightningModule):
     def forward(self, batch, t):
         x, *labels = batch
 
-        if len(labels) == 0:
+        if not self.config.use_condition:
+            cond = None  # unconditioned model
+        elif len(labels) == 0:
             cond = torch.bernoulli(torch.full((x.shape[0], self.config.condition_size),
                                               0.5, device=self.device)) * 2 - 1
         elif len(labels) == 1:

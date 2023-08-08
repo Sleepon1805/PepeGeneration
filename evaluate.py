@@ -13,6 +13,8 @@ from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
 
+from SDE_sampling.sde_samplers import PC_Sampler
+
 
 def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid=False, save_images=True, on_gpu=True):
     folder_to_save = checkpoint.parents[1].joinpath('results/')
@@ -32,6 +34,18 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid
     )
 
     model, config = load_model_and_config(checkpoint, device)
+
+    model.sampler = PC_Sampler(
+        config,
+        sde_name='VPSDE',
+        predictor_name='reverse_diffusion',
+        corrector_name='langevin',
+        snr=0.16,
+        n_steps=1,
+        probability_flow=False,
+        denoise=False
+    )
+    model.sampler.to(device)
 
     # get fake batch with zero'ed images and encoded condition
     fake_batch = create_fake_batch(condition, grid_shape[0] * grid_shape[1], config)
@@ -129,13 +143,13 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 if __name__ == '__main__':
     dataset_name = 'celeba'
-    version = 10
+    version = 6
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/last.ckpt'))[-1])
 
     inference(
         ckpt,
         condition=None,
-        grid_shape=(4, 4),
+        grid_shape=(3, 3),
         calculate_fid=False,
         save_images=True,
         on_gpu=True

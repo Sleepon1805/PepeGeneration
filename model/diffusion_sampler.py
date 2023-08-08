@@ -32,7 +32,7 @@ class Sampler(ABC):
         pass
 
     @abstractmethod
-    def noise_images(self, x, t):
+    def noise_images(self, images, t):
         pass
 
     @abstractmethod
@@ -99,11 +99,11 @@ class DDPM_Diffusion(Sampler):
     def prior_sampling(self, shape):
         return torch.randn(shape, device=self.device)
 
-    def noise_images(self, x, t):
+    def noise_images(self, images, t):
         sqrt_alpha_hat = torch.sqrt(self.alpha_hat[t]).view(-1, 1, 1, 1)
         sqrt_one_minus_alpha_hat = torch.sqrt(1 - self.alpha_hat[t]).view(-1, 1, 1, 1)
-        epsilon = torch.randn_like(x, device=self.device)
-        noised_image = sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat * epsilon
+        epsilon = torch.randn_like(images, device=self.device)
+        noised_image = sqrt_alpha_hat * images + sqrt_one_minus_alpha_hat * epsilon
         return noised_image, epsilon
 
     def denoise_step(self, model: LightningModule, batch, t):

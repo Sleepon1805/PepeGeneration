@@ -36,12 +36,13 @@ class Config:
 
     # pretrained backbone and current dataset
     dataset_name: str = 'celeba'
+    use_condition: bool = True
     condition_size: int = CONDITION_SIZE
     pretrained_ckpt: str = None
     # pretrained_ckpt: str = './lightning_logs/celeba/version_6/checkpoints/last.ckpt'
 
     # gaussian noise hparams
-    diffusion_steps: int = 4000
+    diffusion_steps: int = 1000
     beta_min: float = 1e-4
     beta_max: float = 0.02
 
@@ -55,4 +56,4 @@ class Config:
 
     # SDE sampling params
     continuous_training: bool = False
-    num_scales: int = 4000
+    num_scales: int = 1000

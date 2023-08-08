@@ -98,8 +98,11 @@ class UNetModel(LightningModule):
         """
 
         time_emb = self.time_embed(timesteps)
-        cond_emb = self.condition_emb(cond)
-        emb = torch.concat([time_emb, cond_emb], dim=-1)
+        if cond is not None:
+            cond_emb = self.condition_emb(cond)
+            emb = torch.concat([time_emb, cond_emb], dim=-1)
+        else:
+            emb = time_emb
 
         x = self.init_conv(x)
 

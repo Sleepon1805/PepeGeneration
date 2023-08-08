@@ -16,7 +16,7 @@ class Predictor(abc.ABC):
         self.score_fn = score_fn
 
     @abc.abstractmethod
-    def update_fn(self, x, t):
+    def update_fn(self, batch, t):
         """
         One update of the predictor.
 
@@ -41,7 +41,7 @@ class Corrector(abc.ABC):
         self.n_steps = n_steps
 
     @abc.abstractmethod
-    def update_fn(self, x, t):
+    def update_fn(self, batch, t):
         """
         One update of the corrector.
 
@@ -59,10 +59,11 @@ class EulerMaruyamaPredictor(Predictor):
     def __init__(self, sde, score_fn, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
 
-    def update_fn(self, x, t):
+    def update_fn(self, batch, t):
+        x = batch[0]
         dt = -1. / self.rsde.N
         z = torch.randn_like(x)
-        drift, diffusion = self.rsde.sde(x, t)
+        drift, diffusion = self.rsde.sde(batch, t)
         x_mean = x + drift * dt
         x = x_mean + diffusion[:, None, None, None] * np.sqrt(-dt) * z
         return x, x_mean
@@ -72,8 +73,9 @@ class ReverseDiffusionPredictor(Predictor):
     def __init__(self, sde, score_fn, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
 
-    def update_fn(self, x, t):
-        f, G = self.rsde.discretize(x, t)
+    def update_fn(self, batch, t):
+        x = batch[0]
+        f, G = self.rsde.discretize(batch, t)
         z = torch.randn_like(x)
         x_mean = x - f
         x = x_mean + G[:, None, None, None] * z
@@ -89,23 +91,25 @@ class AncestralSamplingPredictor(Predictor):
             raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
         assert not probability_flow, "Probability flow not supported by ancestral sampling"
 
-    def vesde_update_fn(self, x, t):
+    def vesde_update_fn(self, batch, t):
+        x = batch[0]
         sde = self.sde
         timestep = (t * (sde.N - 1) / sde.T).long()
         sigma = sde.discrete_sigmas[timestep]
         adjacent_sigma = torch.where(timestep == 0, torch.zeros_like(t), sde.discrete_sigmas.to(t.device)[timestep - 1])
-        score = self.score_fn(x, t)
+        score = self.score_fn(batch, t)
         x_mean = x + score * (sigma ** 2 - adjacent_sigma ** 2)[:, None, None, None]
         std = torch.sqrt((adjacent_sigma ** 2 * (sigma ** 2 - adjacent_sigma ** 2)) / (sigma ** 2))
         noise = torch.randn_like(x)
         x = x_mean + std[:, None, None, None] * noise
         return x, x_mean
 
-    def vpsde_update_fn(self, x, t):
+    def vpsde_update_fn(self, batch, t):
+        x = batch[0]
         sde = self.sde
         timestep = (t * (sde.N - 1) / sde.T).long()
         beta = sde.discrete_betas.to(t.device)[timestep]
-        score = self.score_fn(x, t)
+        score = self.score_fn(batch, t)
         x_mean = (x + beta[:, None, None, None] * score) / torch.sqrt(1. - beta)[:, None, None, None]
         noise = torch.randn_like(x)
         x = x_mean + torch.sqrt(beta)[:, None, None, None] * noise
@@ -124,7 +128,8 @@ class NonePredictor(Predictor):
     def __init__(self, sde, score_fn, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
 
-    def update_fn(self, x, t):
+    def update_fn(self, batch, t):
+        x = batch[0]
         return x, x
 
 
@@ -136,7 +141,8 @@ class LangevinCorrector(Corrector):
                 and not isinstance(sde, sde_lib.subVPSDE):
             raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
 
-    def update_fn(self, x, t):
+    def update_fn(self, batch, t):
+        x = batch[0]
         sde = self.sde
         score_fn = self.score_fn
         n_steps = self.n_steps
@@ -148,7 +154,7 @@ class LangevinCorrector(Corrector):
             alpha = torch.ones_like(t)
 
         for i in range(n_steps):
-            grad = score_fn(x, t)
+            grad = score_fn(batch, t)
             noise = torch.randn_like(x)
             grad_norm = torch.norm(grad.reshape(grad.shape[0], -1), dim=-1).mean()
             noise_norm = torch.norm(noise.reshape(noise.shape[0], -1), dim=-1).mean()
@@ -172,7 +178,8 @@ class AnnealedLangevinDynamics(Corrector):
                 and not isinstance(sde, sde_lib.subVPSDE):
             raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
 
-    def update_fn(self, x, t):
+    def update_fn(self, batch, t):
+        x = batch[0]
         sde = self.sde
         score_fn = self.score_fn
         n_steps = self.n_steps
@@ -186,7 +193,7 @@ class AnnealedLangevinDynamics(Corrector):
         std = self.sde.marginal_prob(x, t)[1]
 
         for i in range(n_steps):
-            grad = score_fn(x, t)
+            grad = score_fn(batch, t)
             noise = torch.randn_like(x)
             step_size = (target_snr * std) ** 2 * 2 * alpha
             x_mean = x + step_size[:, None, None, None] * grad
@@ -201,7 +208,8 @@ class NoneCorrector(Corrector):
     def __init__(self, sde, score_fn, snr, n_steps):
         super().__init__(sde, score_fn, snr, n_steps)
 
-    def update_fn(self, x, t):
+    def update_fn(self, batch, t):
+        x = batch[0]
         return x, x
 
 
