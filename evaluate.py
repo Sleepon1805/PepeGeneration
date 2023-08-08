@@ -40,7 +40,7 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_fid
     with progress:
         # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
         gen_samples = model.generate_samples(fake_batch, progress=progress)
-    gen_images = model.generated_samples_to_images(gen_samples, grid_shape)
+    gen_images = model.sampler.generated_samples_to_images(gen_samples, grid_shape)
 
     # save distributions of generated samples
     if save_images:
@@ -75,7 +75,7 @@ def load_model_and_config(checkpoint: Path, device: str) -> (PepeGenerator, Conf
             print('Could not read config from .yaml file. Using default Config().')
             config = Config()
 
-    model = PepeGenerator.load_from_checkpoint(checkpoint, config=config)
+    model = PepeGenerator.load_from_checkpoint(checkpoint, config=config, strict=False)
     model.eval(), model.freeze(), model.to(device)
 
     return model, config

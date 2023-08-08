@@ -8,7 +8,7 @@ from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.inception import InceptionScore
 
 from model.unet import UNetModel
-from model.diffusion import Diffusion
+from model.diffusion_sampler import Sampler, DDPM_Diffusion
 from config import Config
 
 
@@ -16,15 +16,17 @@ class PepeGenerator(LightningModule):
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
-        self.diffusion = Diffusion(config)
+        self.sampler: Sampler = DDPM_Diffusion(config)
         self.model = UNetModel(config)
 
         self.loss_func = torch.nn.MSELoss()
 
         self.example_input_array = (
-            torch.Tensor(config.batch_size, 3, config.image_size, config.image_size),
+            (
+                torch.Tensor(config.batch_size, 3, config.image_size, config.image_size),
+                torch.ones(config.batch_size, config.condition_size)
+            ),
             torch.ones(config.batch_size),
-            torch.ones(config.batch_size, config.condition_size)
         )
         self.save_hyperparameters(self.config.__dict__)
 
@@ -43,6 +45,10 @@ class PepeGenerator(LightningModule):
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
         else:
             raise NotImplemented(self.config.scheduler)
+
+    def to(self, device):
+        super().to(device)
+        self.sampler.to(device)
 
     def training_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)
@@ -63,63 +69,34 @@ class PepeGenerator(LightningModule):
             pickle.dump(self.config, f, pickle.HIGHEST_PROTOCOL)
         self.logger.log_hyperparams(self.config.__dict__)
 
-    def forward(self, x, t, cond=None):
-        if cond is None:
+    def forward(self, batch, t):
+        x, *labels = batch
+
+        if len(labels) == 0:
             cond = torch.bernoulli(torch.full((x.shape[0], self.config.condition_size),
                                               0.5, device=self.device)) * 2 - 1
+        elif len(labels) == 1:
+            cond = labels[0]
+        else:
+            raise ValueError
+
         return self.model(x, t, cond=cond)
 
     def _calculate_loss(self, batch):
-        image_batch, cond_batch = batch
-        ts = self.diffusion.sample_timesteps(image_batch.shape[0])
-        noised_batch, noise = self.diffusion.noise_images(image_batch, ts)
-        output = self.forward(noised_batch, ts, cond_batch)
+        image_batch, *labels = batch
+        ts = self.sampler.sample_timesteps(image_batch.shape[0])
+        noised_image_batch, noise = self.sampler.noise_images(image_batch, ts)
+        noised_batch = (noised_image_batch, *labels)
+        output = self.forward(noised_batch, ts)
         loss = self.loss_func(output, noise)
         return loss
 
-    """
-    Methods for inference and evaluation
-    """
-
-    def denoise_samples(self, x, t, cond=None):
-        predicted_noise = self.forward(x, t.repeat(x.shape[0]), cond)
-        x = self.diffusion.denoise_images(x, t, predicted_noise)
-        return x
-
     def generate_samples(self, batch, progress: Progress = None, seed=42) -> torch.Tensor:
-        torch.manual_seed(seed)
-        images_batch, cond_batch = batch
-        cond_batch = cond_batch.to(self.device)
-        if progress is not None:
-            progress.generating_progress_bar_id = progress.add_task(
-                f"[white]Generating {images_batch.shape[0]} images",
-                total=self.config.diffusion_steps-1
-            )
+        return self.sampler.generate_samples(self, batch, progress, seed)
 
-        # Generate samples from denoising process
-        x = torch.randn_like(images_batch, device=self.device)
-        sample_steps = torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
-        for t in sample_steps:
-            if progress is not None:
-                progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
-                progress.refresh()
-            x = self.denoise_samples(x, t, cond_batch)
-        return x
-
-    @staticmethod
-    def generated_samples_to_images(gen_samples: torch.Tensor, grid_size: Tuple[int, int]) -> np.ndarray:
-        gen_samples = gen_samples[:grid_size[0] * grid_size[1]]
-
-        gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
-        gen_samples = (gen_samples * 255).type(torch.uint8)
-
-        # stack images
-        gen_samples = torch.cat(torch.split(gen_samples, grid_size[0], dim=0), dim=2)
-        gen_samples = torch.cat(torch.split(gen_samples, 1, dim=0), dim=3)
-        gen_samples = gen_samples.squeeze().cpu().numpy()
-        gen_samples = np.moveaxis(gen_samples, 0, -1)
-
-        return gen_samples
+    """
+    Methods for evaluation
+    """
 
     def log_generated_images(self, batch, grid_size=(3, 3)):
         """
