@@ -6,23 +6,22 @@ import matplotlib.pyplot as plt
 from config import Config
 from model.diffusion_sampler import Sampler
 from SDE_sampling.sde_lib import get_sde, VPSDE, subVPSDE, VESDE
-from SDE_sampling.predictors_correctors import PREDICTORS, CORRECTORS, ReverseDiffusionPredictor
+from SDE_sampling.predictors_correctors import PREDICTORS, CORRECTORS, ReverseDiffusionPredictor, Predictor, Corrector
 
 
 class PC_Sampler(Sampler):
-    def __init__(self, config: Config, sde_name: str, predictor_name: str, corrector_name: str, snr: float,
-                 n_steps=1, probability_flow=False, denoise=True):
+    def __init__(self, config: Config):
         super().__init__(config)
         # assert not self.config.use_condition, 'Conditional prediction with SDE sampler is not implemented yet'
 
-        self.n_steps = n_steps
-        self.probability_flow = probability_flow
-        self.denoise = denoise
-        self.snr = snr
+        self.n_steps = config.num_corrector_steps
+        self.probability_flow = config.probability_flow
+        self.denoise = config.denoise
+        self.snr = config.snr
 
-        self.sde = get_sde(sde_name, self.config)
-        self.predictor_name = predictor_name
-        self.corrector_name = corrector_name
+        self.sde = get_sde(config.sde_name, self.config)
+        self.predictor_name = config.predictor_name
+        self.corrector_name = config.corrector_name
 
     def init_timesteps(self):
         return torch.linspace(self.sde.T, self.sde.eps, self.sde.N, device=self.device)
@@ -49,8 +48,8 @@ class PC_Sampler(Sampler):
         out = x_mean if self.denoise else x
         return out
 
-    def _get_pc(self, model):
-        score_fn = get_score_fn(self.sde, model, continuous=self.config.continuous_training)
+    def _get_pc(self, model) -> (Predictor, Corrector):
+        score_fn = get_score_fn(self.sde, model, continuous=self.config.sde_training)
 
         predictor = PREDICTORS[self.predictor_name](self.sde, score_fn, self.probability_flow)
         corrector = CORRECTORS[self.corrector_name](self.sde, score_fn, self.snr, self.n_steps)
@@ -111,36 +110,39 @@ class ODE_Sampler(Sampler):
 
 
 def get_score_fn(sde, model, continuous=False):
-    if isinstance(sde, VPSDE) or isinstance(sde, subVPSDE):
+    if (isinstance(sde, VPSDE) and continuous) or isinstance(sde, subVPSDE):
         def score_fn(batch, t):
+            # For VP-trained models, t=0 corresponds to the lowest noise level
+            # The maximum value of time embedding is assumed to 999 for
+            # continuously-trained models.
             images = batch[0]
-            # Scale neural network output by standard deviation and flip sign
-            if continuous or isinstance(sde, subVPSDE):
-                # For VP-trained models, t=0 corresponds to the lowest noise level
-                # The maximum value of time embedding is assumed to 999 for
-                # continuously-trained models.
-                ts = t * 999
-                score = model(batch, ts)
-                std = sde.marginal_prob(torch.zeros_like(images), t)[1]
-            else:
-                # For VP-trained models, t=0 corresponds to the lowest noise level
-                ts = t * (sde.N - 1)
-                score = model(batch, ts)
-                std = sde.sqrt_1m_alphas_cumprod.to(ts.device)[ts.long()]
-
+            ts = t * 999
+            score = model(batch, ts)
+            std = sde.marginal_prob(torch.zeros_like(images), t)[1]
             score = -score / std[:, None, None, None]
             return score
 
-    elif isinstance(sde, VESDE):
-        def score_fn(x, t):
-            if continuous:
-                labels = sde.marginal_prob(torch.zeros_like(x), t)[1]
-            else:
-                # For VE-trained models, t=0 corresponds to the highest noise level
-                labels = sde.T - t
-                labels *= sde.N - 1
-                labels = torch.round(labels).long()
+    elif isinstance(sde, VPSDE) and not continuous:
+        def score_fn(batch, t):
+            # For VP-trained models, t=0 corresponds to the lowest noise level
+            ts = t * (sde.N - 1)
+            score = model(batch, ts)
+            std = sde.sqrt_1m_alphas_cumprod.to(ts.device)[ts.long()]
+            score = -score / std[:, None, None, None]
+            return score
 
+    elif isinstance(sde, VESDE) and continuous:
+        def score_fn(x, t):
+            labels = sde.marginal_prob(torch.zeros_like(x), t)[1]
+            score = model(x, labels)
+            return score
+
+    elif isinstance(sde, VESDE) and not continuous:
+        def score_fn(x, t):
+            # For VE-trained models, t=0 corresponds to the highest noise level
+            labels = sde.T - t
+            labels *= sde.N - 1
+            labels = torch.round(labels).long()
             score = model(x, labels)
             return score
 
@@ -148,34 +150,3 @@ def get_score_fn(sde, model, continuous=False):
         raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
 
     return score_fn
-
-
-def inference(ckpt_path: Path, grid_shape=(4, 4), on_gpu=True):
-    device = 'cuda' if (on_gpu and torch.cuda.is_available()) else 'cpu'
-    model, config = load_model_and_config(ckpt_path, device)
-
-    num_samples = grid_shape[0] * grid_shape[1]
-    sde_name = 'vpsde'
-
-    sampler = PC_Sampler(config, sde_name,
-                         predictor_name='reverse_diffusion',
-                         corrector_name='langevin',
-                         snr=0.16,
-                         n_steps=1,
-                         probability_flow=False,
-                         denoise=False)
-    # sampler = ODE_Sampler(model, config, sde_name, denoise=True)
-
-    gen_samples = sampler.sample(num_samples)
-
-    gen_images = sampler.generated_samples_to_images(gen_samples, grid_shape)
-    plt.imshow(gen_images)
-    plt.show()
-
-
-if __name__ == '__main__':
-    dataset_name = 'celeba'
-    version = 6
-    ckpt = Path(f'../lightning_logs/{dataset_name}/version_{version}/checkpoints/last.ckpt')
-
-    inference(ckpt, grid_shape=(3, 3), on_gpu=True)

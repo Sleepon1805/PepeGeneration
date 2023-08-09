@@ -289,11 +289,11 @@ class VESDE(SDE):
 
 def get_sde(sde_name, config: Config) -> SDE:
     if sde_name.lower() == 'vesde':
-        sde = VESDE(sigma_min=config.sigma_min, sigma_max=config.sigma_max, N=config.num_scales)
+        sde = VESDE(sigma_min=config.sigma_min, sigma_max=config.sigma_max, N=config.sde_num_scales)
     elif sde_name.lower() == 'vpsde':
-        sde = VPSDE(beta_min=config.beta_min, beta_max=config.beta_max, N=config.num_scales)
+        sde = VPSDE(beta_min=config.sde_beta_min, beta_max=config.sde_beta_max, N=config.sde_num_scales)
     elif sde_name.lower() == 'subvpsde':
-        sde = subVPSDE(beta_min=config.beta_min, beta_max=config.beta_max, N=config.num_scales)
+        sde = subVPSDE(beta_min=config.sde_beta_min, beta_max=config.sde_beta_max, N=config.sde_num_scales)
     else:
         raise ValueError
     return sde

@@ -43,18 +43,21 @@ class Sampler(ABC):
         torch.manual_seed(seed)
         images_batch, *labels = batch
 
+        # move to device
         for i in range(len(labels)):
             labels[i] = labels[i].to(self.device)
+
+        # init
+        x = self.prior_sampling(images_batch.shape)
+        timesteps = self.init_timesteps()
 
         if progress is not None:
             progress.generating_progress_bar_id = progress.add_task(
                 f"[white]Generating {images_batch.shape[0]} images",
-                total=self.config.diffusion_steps-1
+                total=len(timesteps)
             )
 
         # Generate samples from denoising process
-        x = self.prior_sampling(images_batch.shape)
-        timesteps = self.init_timesteps()
         for t in timesteps:
             if progress is not None:
                 progress.update(progress.generating_progress_bar_id, advance=1, visible=True)

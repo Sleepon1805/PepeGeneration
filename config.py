@@ -55,5 +55,15 @@ class Config:
     use_second_attention: bool = True
 
     # SDE sampling params
-    continuous_training: bool = False
-    num_scales: int = 1000
+    sde_training: bool = False
+    sde_name: str = 'VPSDE'
+    sde_beta_min: float = 0.1
+    sde_beta_max: float = 20.
+    sde_num_scales: int = 1000
+    predictor_name: str = 'ancestral_sampling'
+    corrector_name: str = 'none'
+    snr: float = 0.16
+    num_corrector_steps: str = 1
+    probability_flow: bool = False
+    denoise: bool = False
+

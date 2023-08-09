@@ -106,11 +106,11 @@ class AncestralSamplingPredictor(Predictor):
 
     def vpsde_update_fn(self, batch, t):
         x = batch[0]
-        sde = self.sde
-        timestep = (t * (sde.N - 1) / sde.T).long()
-        beta = sde.discrete_betas.to(t.device)[timestep]
+        timestep = (t * (self.sde.N - 1) / self.sde.T).long()
+        beta = self.sde.discrete_betas.to(t.device)[timestep]
         score = self.score_fn(batch, t)
         x_mean = (x + beta[:, None, None, None] * score) / torch.sqrt(1. - beta)[:, None, None, None]
+        # x_mean = (2 - torch.sqrt(1 - beta)[:, None, None, None]) * x + beta[:, None, None, None] * score
         noise = torch.randn_like(x)
         x = x_mean + torch.sqrt(beta)[:, None, None, None] * noise
         return x, x_mean
