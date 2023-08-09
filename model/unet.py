@@ -14,17 +14,21 @@ class UNetModel(LightningModule):
         self.conv_resample = config.conv_resample
         self.num_heads = config.num_heads
         self.dropout = config.dropout
+        self.use_condition = config.use_condition
 
         self.in_channels = in_channels
         self.model_channels = [mult * self.init_channels for mult in self.channel_mult]
         self.out_channels = 3
 
-        self.time_embed_dim = self.init_channels
-        self.cond_embed_dim = self.init_channels * 3
-        self.embed_dim = self.time_embed_dim + self.cond_embed_dim
-
-        self.time_embed = TimeEmbedding(self.init_channels, self.time_embed_dim)
-        self.condition_emb = ConditionEmbedding(self.init_channels, self.cond_embed_dim, config.condition_size)
+        if self.use_condition:
+            self.time_embed_dim = self.init_channels
+            self.cond_embed_dim = self.init_channels * 3
+            self.embed_dim = self.time_embed_dim + self.cond_embed_dim
+            self.time_embed = TimeEmbedding(self.init_channels, self.time_embed_dim)
+            self.condition_emb = ConditionEmbedding(self.init_channels, self.cond_embed_dim, config.condition_size)
+        else:
+            self.embed_dim = self.init_channels * 4
+            self.time_embed = TimeEmbedding(self.init_channels, self.embed_dim)
 
         # downsample layers
         self.init_conv = nn.Conv2d(self.in_channels, self.init_channels, 3, padding=1)
@@ -97,12 +101,12 @@ class UNetModel(LightningModule):
         :return: output - torch.Tensor with shape (B, C_color, H, W)
         """
 
-        time_emb = self.time_embed(timesteps)
-        if cond is not None:
+        if self.use_condition:
+            time_emb = self.time_embed(timesteps)
             cond_emb = self.condition_emb(cond)
             emb = torch.concat([time_emb, cond_emb], dim=-1)
         else:
-            emb = time_emb
+            emb = self.time_embed(timesteps)
 
         x = self.init_conv(x)
 
