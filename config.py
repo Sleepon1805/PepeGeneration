@@ -26,6 +26,7 @@ class Config:
     git_hash: str = curr_git_hash()
 
     # training params
+    sde_training: bool = False
     batch_size: int = 64
     image_size: int = 64  # size of image NxN
     lr: float = 1e-4  # learning rate on training start
@@ -36,7 +37,7 @@ class Config:
 
     # pretrained backbone and current dataset
     dataset_name: str = 'celeba'
-    use_condition: bool = False
+    use_condition: bool = True
     condition_size: int = CONDITION_SIZE
     pretrained_ckpt: str = None
     # pretrained_ckpt: str = './lightning_logs/celeba/version_6/checkpoints/last.ckpt'
@@ -54,12 +55,14 @@ class Config:
     dropout: float = 0.3
     use_second_attention: bool = True
 
+
+@dataclass
+class SDE_Config:
     # SDE sampling params
-    sde_training: bool = False
     sde_name: str = 'VPSDE'
-    sde_beta_min: float = 0.1
-    sde_beta_max: float = 20.
-    sde_num_scales: int = 1000
+    beta_min: float = 0.1
+    beta_max: float = 20.
+    num_scales: int = 1250
     predictor_name: str = 'ancestral_sampling'
     corrector_name: str = 'none'
     snr: float = 0.16

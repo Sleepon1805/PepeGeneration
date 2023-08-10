@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
     MofNCompleteColumn
 
-from config import Paths, Config
+from config import Paths, Config, SDE_Config
 from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
@@ -37,7 +37,8 @@ def inference(checkpoint: Path, condition=None, sde_sampling: bool = True, grid_
     model, config = load_model_and_config(checkpoint, device)
 
     if sde_sampling:
-        model.sampler = PC_Sampler(config)
+        sde_config = SDE_Config()
+        model.sampler = PC_Sampler(config, sde_config)
         model.sampler.to(device)
 
     # get fake batch with zero'ed images and encoded condition

@@ -1,27 +1,25 @@
 import torch
-from pathlib import Path
 from scipy import integrate
-import matplotlib.pyplot as plt
 
-from config import Config
+from config import Config, SDE_Config
 from model.diffusion_sampler import Sampler
 from SDE_sampling.sde_lib import get_sde, VPSDE, subVPSDE, VESDE
 from SDE_sampling.predictors_correctors import PREDICTORS, CORRECTORS, ReverseDiffusionPredictor, Predictor, Corrector
 
 
 class PC_Sampler(Sampler):
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, sde_config: SDE_Config):
         super().__init__(config)
-        # assert not self.config.use_condition, 'Conditional prediction with SDE sampler is not implemented yet'
+        self.sde_config = sde_config
 
-        self.n_steps = config.num_corrector_steps
-        self.probability_flow = config.probability_flow
-        self.denoise = config.denoise
-        self.snr = config.snr
+        self.n_steps = sde_config.num_corrector_steps
+        self.probability_flow = sde_config.probability_flow
+        self.denoise = sde_config.denoise
+        self.snr = sde_config.snr
 
-        self.sde = get_sde(config.sde_name, self.config)
-        self.predictor_name = config.predictor_name
-        self.corrector_name = config.corrector_name
+        self.sde = get_sde(sde_config.sde_name, sde_config)
+        self.predictor_name = sde_config.predictor_name
+        self.corrector_name = sde_config.corrector_name
 
     def init_timesteps(self):
         return torch.linspace(self.sde.T, self.sde.eps, self.sde.N, device=self.device)

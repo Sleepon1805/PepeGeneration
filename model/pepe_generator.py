@@ -107,7 +107,7 @@ class PepeGenerator(LightningModule):
             gen_samples = self.generate_samples(batch, progress)
 
         # images
-        images = self.generated_samples_to_images(gen_samples, grid_size)
+        images = self.sampler.generated_samples_to_images(gen_samples, grid_size)
         self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
 
         # distributions

@@ -28,7 +28,7 @@ class UNetModel(LightningModule):
             self.condition_emb = ConditionEmbedding(self.init_channels, self.cond_embed_dim, config.condition_size)
         else:
             self.embed_dim = self.init_channels * 4
-            self.time_embed = TimeEmbedding(self.init_channels, self.embed_dim)
+            self.time_embedd = TimeEmbedding(self.init_channels, self.embed_dim)
 
         # downsample layers
         self.init_conv = nn.Conv2d(self.in_channels, self.init_channels, 3, padding=1)
@@ -106,7 +106,7 @@ class UNetModel(LightningModule):
             cond_emb = self.condition_emb(cond)
             emb = torch.concat([time_emb, cond_emb], dim=-1)
         else:
-            emb = self.time_embed(timesteps)
+            emb = self.time_embedd(timesteps)
 
         x = self.init_conv(x)
 
