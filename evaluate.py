@@ -7,16 +7,17 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
     MofNCompleteColumn
+import imageio
 
 from config import Paths, Config, SDE_Config
 from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
 
-from SDE_sampling.sde_samplers import PC_Sampler
+from SDE_sampling.sde_samplers import PC_Sampler, ODE_Sampler
 
 
-def inference(checkpoint: Path, condition=None, sde_sampling: bool = True, grid_shape=(4, 4), calculate_fid=False,
+def inference(checkpoint: Path, condition=None, sde_sampling: bool = True, grid_shape=(4, 4), calculate_metrics=False,
               save_images=True, on_gpu=True):
     folder_to_save = checkpoint.parents[1].joinpath('results/')
     if not os.path.exists(folder_to_save):
@@ -38,11 +39,17 @@ def inference(checkpoint: Path, condition=None, sde_sampling: bool = True, grid_
 
     if sde_sampling:
         sde_config = SDE_Config()
-        model.sampler = PC_Sampler(config, sde_config)
+        if sde_config.predictor_name.lower() == 'ode_solver':
+            model.sampler = ODE_Sampler(config, sde_config)
+        else:
+            model.sampler = PC_Sampler(config, sde_config)
         model.sampler.to(device)
 
     # get fake batch with zero'ed images and encoded condition
-    fake_batch = create_fake_batch(condition, grid_shape[0] * grid_shape[1], config)
+    fake_batch = create_input_batch(condition, grid_shape[0] * grid_shape[1], config)
+
+    # with progress:
+    #     model.sampler.visualize_generation_process(model, fake_batch, progress)
 
     # generate images
     with progress:
@@ -64,13 +71,15 @@ def inference(checkpoint: Path, condition=None, sde_sampling: bool = True, grid_
     plt.imshow(gen_images)
     if save_images:
         plt.imsave(folder_to_save.joinpath(f'final_pred.png'), gen_images)
+        print(f'Saved results at {folder_to_save}')
     plt.title(condition)
     plt.show()
-    print(f'Saved results at {folder_to_save}')
 
-    if calculate_fid:
+    if calculate_metrics:
         with progress:
             calculate_fid_loss(gen_samples, config, device, progress=progress)
+        inception_score = model.calculate_inception_score(gen_samples=gen_samples)
+        print(f'Inception score: {inception_score}')
 
 
 def load_model_and_config(checkpoint: Path, device: str) -> (PepeGenerator, Config):
@@ -89,26 +98,26 @@ def load_model_and_config(checkpoint: Path, device: str) -> (PepeGenerator, Conf
     return model, config
 
 
-def create_fake_batch(condition, num_samples, config):
-    # decode conditions
+def create_input_batch(condition, num_samples, config):
     if condition is None:
-        print('Got no condition. Taking conditions from first val batch.')
+        print('Got no condition. Taking input images and conditions from first val batch.')
         dataset = PepeDataset(config.dataset_name, config.image_size, paths=Paths(), augments=None)
         train_set, val_set = torch.utils.data.random_split(dataset, config.dataset_split,
                                                            generator=torch.Generator().manual_seed(137))
-        val_loader = torch.utils.data.DataLoader(val_set, batch_size=num_samples, pin_memory=True,
-                                                 num_workers=0)
-        cond_batch = next(iter(val_loader))[1]
+        loader = torch.utils.data.DataLoader(val_set, batch_size=num_samples, pin_memory=True,
+                                             num_workers=0)
+        batch = next(iter(loader))
+        return batch
     else:
-        print(f'Generating images for condition {condition}')
+        print(f'Generating images for condition {condition}, input images are set to zeros.')
         encoded_cond = encode_condition(config.dataset_name, condition)
         encoded_cond = torch.from_numpy(encoded_cond)
         cond_batch = torch.repeat_interleave(encoded_cond, num_samples, dim=0)
 
-    # fake batch
-    fake_image_batch = torch.zeros((num_samples, 3, config.image_size, config.image_size))
-    fake_batch = (fake_image_batch, cond_batch)
-    return fake_batch
+        # fake batch
+        fake_image_batch = torch.zeros((num_samples, 3, config.image_size, config.image_size))
+        fake_batch = (fake_image_batch, cond_batch)
+        return fake_batch
 
 
 def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progress):
@@ -137,37 +146,16 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 if __name__ == '__main__':
     dataset_name = 'celeba'
-    version = 6
-    sde_sampling = True
+    version = 11
+    sample_with_sde = True
     ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/last.ckpt'))[-1])
 
     inference(
         ckpt,
         condition=None,
-        sde_sampling=sde_sampling,
-        grid_shape=(3, 3),
-        calculate_fid=False,
+        sde_sampling=sample_with_sde,
+        grid_shape=(16, 16),
+        calculate_metrics=False,
         save_images=False,
         on_gpu=True
     )
-
-    # inference(
-    #     ckpt,
-    #     condition=None,
-    #     sde_sampling=sde_sampling,
-    #     grid_shape=(16, 16),
-    #     calculate_fid=True,
-    #     save_images=False,
-    #     on_gpu=True
-    # )
-    #
-    # for features in [[], ["Male"], ["Eyeglasses"], ["Male", "Eyeglasses"]]:
-    #     inference(
-    #         ckpt,
-    #         condition=features,
-    #         sde_sampling=sde_sampling,
-    #         grid_shape=(3, 3),
-    #         calculate_fid=False,
-    #         save_images=False,
-    #         on_gpu=True
-    #     )

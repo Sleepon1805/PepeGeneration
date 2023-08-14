@@ -55,55 +55,68 @@ class PC_Sampler(Sampler):
 
 
 class ODE_Sampler(Sampler):
-    def __init__(self, model, config, sde_name, method='RK45', rtol=1e-5, atol=1e-5, denoise=False):
-        super().__init__(model, config)
+    def __init__(self, config, sde_config, method='RK45', rtol=1e-5, atol=1e-5):
+        super().__init__(config)
+        self.sde_config = sde_config
+        self.sde = get_sde(sde_config.sde_name, sde_config)
+
         self.method = method
         self.rtol = rtol
         self.atol = atol
-        self.denoise = denoise
+        self.denoise = sde_config.denoise
 
-        self.sde, self.eps = get_sde(sde_name, self.config)
-        self.score_fn = get_score_fn(self.sde, self.model, continuous=True)
-        self.predictor = ReverseDiffusionPredictor(self.sde, self.score_fn, probability_flow=False)
+    def init_timesteps(self):
+        pass
 
-    def sample(self, num_samples, z=None):
-        shape = (num_samples, 3, self.config.image_size, self.config.image_size)
+    def sample_timesteps(self, n):
+        pass
+
+    def prior_sampling(self, shape):
+        return self.sde.prior_sampling(shape).to(self.device)
+
+    def noise_images(self, images, t):
+        pass
+
+    def denoise_step(self, model, batch, t):
+        pass
+
+    def generate_samples(self, model, batch, progress=None, seed=42):
+        x = batch[0]
+        shape = x.shape
 
         # Initial sample
-        if z is None:
-            # If not represent, sample the latent code from the prior distibution of the SDE.
-            x = self.sde.prior_sampling(shape).to(self.device)
-        else:
-            x = z
+        x = self.prior_sampling(shape)
         x = x.detach().cpu().numpy().reshape((-1,))
 
-        ode_func = self.get_ode_func(shape)
+        score_fn = get_score_fn(self.sde, model, continuous=self.config.sde_training)
+
+        ode_func = self.get_ode_func(score_fn, shape)
 
         # Black-box ODE solver for the probability flow ODE
-        solution = integrate.solve_ivp(ode_func, (self.sde.T, self.eps), x,
+        solution = integrate.solve_ivp(ode_func, (self.sde.T, self.sde.eps), x,
                                        rtol=self.rtol, atol=self.atol, method=self.method)
-        n = solution.nfev
         x = torch.tensor(solution.y[:, -1]).reshape(shape).to(self.device).type(torch.float32)
 
         # Denoising is equivalent to running one predictor step without adding noise
         if self.denoise:
-            x = self.denoise_update_fn(x)
+            x = self.denoise_update_fn(x, score_fn)
 
-        return x, n
+        return x
 
-    def get_ode_func(self, shape):
-        def ode_func(x, t):
+    def get_ode_func(self, score_fn, shape):
+        def ode_func(t, x):
             x = torch.from_numpy(x.reshape(shape)).to(self.device).type(torch.float32)
             vec_t = torch.ones(shape[0], device=self.device) * t
-            rsde = self.sde.reverse(self.score_fn, probability_flow=True)
-            drift = rsde.sde(x, vec_t)[0]
+            rsde = self.sde.reverse(score_fn, probability_flow=True)
+            drift = rsde.sde((x, ), vec_t)[0]
             return drift.detach().cpu().numpy().reshape((-1,))
         return ode_func
 
-    def denoise_update_fn(self, x):
+    def denoise_update_fn(self, x, score_fn):
         # Reverse diffusion predictor for denoising
-        vec_eps = torch.ones(x.shape[0], device=x.device) * self.eps
-        _, x = self.predictor.update_fn(x, vec_eps)
+        predictor = ReverseDiffusionPredictor(self.sde, score_fn, probability_flow=True)
+        vec_eps = torch.ones(x.shape[0], device=x.device) * self.sde.eps
+        _, x = predictor.update_fn((x, ), vec_eps)
         return x
 
 

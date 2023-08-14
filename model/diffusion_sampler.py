@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from rich.progress import Progress
 import numpy as np
 from typing import Tuple
+import matplotlib.pyplot as plt
 
 from config import Config
 
@@ -109,6 +110,12 @@ class DDPM_Diffusion(Sampler):
         noised_image = sqrt_alpha_hat * images + sqrt_one_minus_alpha_hat * epsilon
         return noised_image, epsilon
 
+    def noise_images_one_step(self, prev_step_images, t):
+        beta = self.beta[t].view(-1, 1, 1, 1)
+        epsilon = torch.randn_like(prev_step_images, device=self.device)
+        noised_image = torch.sqrt(1 - beta) * prev_step_images + torch.sqrt(beta) * epsilon
+        return noised_image, epsilon
+
     def denoise_step(self, model: LightningModule, batch, t):
         images = batch[0]
         predicted_noise = model(batch, t.repeat(images.shape[0]))
@@ -125,3 +132,47 @@ class DDPM_Diffusion(Sampler):
         denoised_image = 1 / torch.sqrt(alpha) * (images - ((1 - alpha) / (torch.sqrt(1 - alpha_hat)))
                                                   * predicted_noise) + torch.sqrt(beta) * noise
         return denoised_image
+
+    def visualize_generation_process(self, model, batch, progress: Progress = None, seed=42):
+        torch.manual_seed(seed)
+        images_batch, *labels = batch
+
+        # move to device
+        images_batch = images_batch.to(self.device)
+        for i in range(len(labels)):
+            labels[i] = labels[i].to(self.device)
+
+        # init
+        timesteps = self.init_timesteps()
+
+        if progress is not None:
+            progress.generating_progress_bar_id = progress.add_task(
+                f"[white]Generating {images_batch.shape[0]} images",
+                total=len(timesteps)
+            )
+
+        noising_images = []
+        x = images_batch
+        # Generate samples from denoising process
+        for t in torch.flip(timesteps, dims=(0,)):
+            x, noise = self.noise_images_one_step(x, t)
+            noising_images.append(x)
+        noising_images = noising_images[::100] + [noising_images[-1]]
+
+        denoising_images = []
+        # Generate samples from denoising process
+        for t in timesteps:
+            if progress is not None:
+                progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
+                progress.refresh()
+            x = self.denoise_step(model, (x, *labels), t)
+            denoising_images.append(x)
+        denoising_images = denoising_images[::100] + [denoising_images[-1]]
+
+        plt.imshow(self.generated_samples_to_images(torch.concat(noising_images, dim=0), (11, 1)))
+        plt.axis('off')
+        plt.show()
+
+        plt.imshow(self.generated_samples_to_images(torch.concat(denoising_images[::-1], dim=0), (11, 1)))
+        plt.axis('off')
+        plt.show()

@@ -62,10 +62,10 @@ class SDE_Config:
     sde_name: str = 'VPSDE'
     beta_min: float = 0.1
     beta_max: float = 20.
-    num_scales: int = 1250
-    predictor_name: str = 'ancestral_sampling'
-    corrector_name: str = 'none'
-    snr: float = 0.16
+    num_scales: int = 1000
+    predictor_name: str = 'reverse_diffusion'
+    corrector_name: str = 'langevin'
+    snr: float = 0.01
     num_corrector_steps: str = 1
     probability_flow: bool = False
     denoise: bool = False
