@@ -35,7 +35,7 @@ def collect_twitch_emotes(data_path):
             continue
 
         for emoticon in req['emoticons']:
-            if check_emote_name(emoticon['name']):
+            if check_emoticon(emoticon):
                 try:
                     size_scale = max(emoticon['urls'].keys(), key=int)
                     url = emoticon['urls'][size_scale]
@@ -53,8 +53,15 @@ def collect_twitch_emotes(data_path):
                     print(e)
 
 
-def check_emote_name(name: str):
-    name = name.lower()
+def check_emoticon(emoticon: dict):
+    valid_emote = False
+
+    # usages check
+    if emoticon['usage_count'] >= 10:
+        valid_emote = True
+
+    # name check
+    name = emoticon['name'].lower()
     valid_name = any([
         'pepe' in name,
         'pepo' in name,
@@ -63,12 +70,14 @@ def check_emote_name(name: str):
         # name.endswith('ge'),
         # name.endswith('eg'),
     ])
-    return valid_name
+    if valid_name:
+        valid_emote = True
+
+    return valid_emote
 
 
 if __name__ == '__main__':
-    from config import Paths
-    path = Paths().twitch_emotes_data_path
+    path = '/home/sleepon/data/AllFFZEmotes/'
     collect_twitch_emotes(path)
 
     # import shutil

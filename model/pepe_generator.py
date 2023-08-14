@@ -1,12 +1,14 @@
 import numpy as np
 import torch
 import pickle
-from lightning import LightningModule
+from typing import Tuple
 from rich.progress import Progress
+from lightning import LightningModule
 from torchmetrics.image.fid import FrechetInceptionDistance
+from torchmetrics.image.inception import InceptionScore
 
 from model.unet import UNetModel
-from model.diffusion import Diffusion
+from model.diffusion_sampler import Sampler, DDPM_Diffusion
 from config import Config
 
 
@@ -14,13 +16,18 @@ class PepeGenerator(LightningModule):
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
-        self.diffusion = Diffusion(config)
+        self.sampler: Sampler = DDPM_Diffusion(config)
         self.model = UNetModel(config)
 
         self.loss_func = torch.nn.MSELoss()
 
-        self.example_input_array = torch.Tensor(config.batch_size, 3, config.image_size, config.image_size), \
-            torch.ones(config.batch_size), torch.ones(config.batch_size, config.condition_size)
+        self.example_input_array = (
+            (
+                torch.Tensor(config.batch_size, 3, config.image_size, config.image_size),
+                torch.ones(config.batch_size, config.condition_size)
+            ),
+            torch.ones(config.batch_size),
+        )
         self.save_hyperparameters(self.config.__dict__)
 
     def configure_optimizers(self):
@@ -29,7 +36,7 @@ class PepeGenerator(LightningModule):
             print('No scheduler')
             return optimizer
         elif self.config.scheduler.lower() == 'multisteplr':
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, gamma=0.1, milestones=(10, 20, 30),
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, gamma=0.1, milestones=(5, ),
                                                              verbose=False)
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler}}
         elif self.config.scheduler.lower() == 'reducelronplateau':
@@ -39,6 +46,10 @@ class PepeGenerator(LightningModule):
         else:
             raise NotImplemented(self.config.scheduler)
 
+    def to(self, device):
+        super().to(device)
+        self.sampler.to(device)
+
     def training_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)
         self.log("train_loss", loss)
@@ -47,6 +58,9 @@ class PepeGenerator(LightningModule):
     def validation_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)
         self.log("val_loss", loss)
+
+        if batch_idx == 0 and self.global_step > 0:  # to skip sanity check
+            self.log_generated_images(batch)
         return
 
     def on_train_start(self) -> None:
@@ -55,91 +69,79 @@ class PepeGenerator(LightningModule):
             pickle.dump(self.config, f, pickle.HIGHEST_PROTOCOL)
         self.logger.log_hyperparams(self.config.__dict__)
 
-    def on_validation_end(self) -> None:
-        if self.global_step > 0:  # to skip sanity check
-            self._log_images_dists_and_fid(num_samples=self.config.num_logging_samples)
+    def forward(self, batch, t):
+        x, *labels = batch
 
-    def forward(self, x, t, cond):
+        if len(labels) == 0:
+            cond = torch.bernoulli(torch.full((x.shape[0], self.config.condition_size),
+                                              0.5, device=self.device)) * 2 - 1
+        elif len(labels) == 1:
+            cond = labels[0]
+        else:
+            raise ValueError
+
         return self.model(x, t, cond=cond)
 
     def _calculate_loss(self, batch):
-        image_batch, cond_batch = batch
-        ts = self.diffusion.sample_timesteps(image_batch.shape[0])
-        noised_batch, noise = self.diffusion.noise_images(image_batch, ts)
-        output = self.forward(noised_batch, ts, cond_batch)
+        image_batch, *labels = batch
+        ts = self.sampler.sample_timesteps(image_batch.shape[0])
+        noised_image_batch, noise = self.sampler.noise_images(image_batch, ts)
+        noised_batch = (noised_image_batch, *labels)
+        output = self.forward(noised_batch, ts)
         loss = self.loss_func(output, noise)
         return loss
 
-    def denoise_sample(self, x, t, cond):
-        predicted_noise = self.forward(x, t.repeat(x.shape[0]), cond)
-        x = self.diffusion.denoise_images(x, t, predicted_noise)
-        return x
+    def generate_samples(self, batch, progress: Progress = None, seed=42) -> torch.Tensor:
+        return self.sampler.generate_samples(self, batch, progress, seed)
 
     """
-    Methods for inference and evaluation
+    Methods for evaluation
     """
 
-    def generate_samples(self, num_images, progress: Progress, cond=None) -> torch.Tensor:
-        torch.manual_seed(137)
-        progress.generating_progress_bar_id = progress.add_task(f"[white]Generating {num_images} images",
-                                                                total=self.config.diffusion_steps-1)
-        # Generate samples from denoising process
-        x = torch.randn((num_images, 3, self.config.image_size, self.config.image_size), device=self.device)
-        sample_steps = torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
-        if cond is None and self.config.use_condition:
-            # create random condition
-            cond = torch.bernoulli(torch.full((num_images, 40), 0.5, device=self.device)) * 2 - 1
-        for t in sample_steps:
-            progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
-            progress.refresh()
-            x = self.denoise_sample(x, t, cond)
-        return x
+    def log_generated_images(self, batch, grid_size=(3, 3)):
+        """
+        Generate some images to log them, their distribution and FID metric
+        """
 
-    @staticmethod
-    def generated_samples_to_images(gen_samples: torch.Tensor, grid_size=(4, 4)) -> np.ndarray:
-        gen_samples = gen_samples[:grid_size[0] * grid_size[1]]
+        with self.trainer.progress_bar_callback.progress as progress:
+            gen_samples = self.generate_samples(batch, progress)
 
-        gen_samples = (gen_samples.clamp(-1, 1) + 1) / 2
-        gen_samples = (gen_samples * 255).type(torch.uint8)
+        # images
+        images = self.sampler.generated_samples_to_images(gen_samples, grid_size)
+        self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
 
-        # stack images
-        gen_samples = torch.cat(torch.split(gen_samples, grid_size[0], dim=0), dim=2)
-        gen_samples = torch.cat(torch.split(gen_samples, 1, dim=0), dim=3)
-        gen_samples = gen_samples.squeeze().cpu().numpy()
-        gen_samples = np.moveaxis(gen_samples, 0, -1)
+        # distributions
+        try:
+            self.logger.experiment.add_histogram('generated_distribution', gen_samples.clip(-10, 10),
+                                                 global_step=self.current_epoch)
+        except:
+            print('Could not log histogram')
 
-        return gen_samples
+        # Frechet Inception Distance
+        fid_loss = self.calculate_fid(gen_samples)
+        self.log('fid_metric', fid_loss)
+
+        # Inception Score
+        inception_score = self.calculate_inception_score(gen_samples)
+        self.log('inception_score', inception_score)
 
     def calculate_fid(self, gen_samples: torch.Tensor):
         fid_metric = FrechetInceptionDistance(feature=192, reset_real_features=False, normalize=True)
 
         # add real images to fid
-        for samples, cond in self.trainer.val_dataloaders:
-            if fid_metric.real_features_num_samples > len(gen_samples):
-                break
-            images = (samples + 1) / 2
-            fid_metric.update(images, real=True)
+        first_val_batch = next(iter(self.trainer.val_dataloaders))
+        samples = first_val_batch[0]
+        images = (samples + 1) / 2
+        fid_metric.update(images, real=True)
 
         fid_metric.update((gen_samples.cpu().clamp(-1, 1) + 1) / 2, real=False)
         fid_loss = fid_metric.compute().item()
         return fid_loss
 
-    def _log_images_dists_and_fid(self, num_samples=128, grid_size=(3, 3)):
-        """
-        Generate some images to log them and their distribution
-        """
+    @staticmethod
+    def calculate_inception_score(gen_samples: torch.Tensor):
+        inception_score = InceptionScore(normalize=True)
 
-        with self.trainer.progress_bar_callback.progress as progress:
-            gen_samples = self.generate_samples(num_samples, progress)
-
-        # distributions
-        self.logger.experiment.add_histogram('generated_distribution', gen_samples,
-                                             global_step=self.current_epoch)
-
-        # images
-        images = self.generated_samples_to_images(gen_samples, grid_size)
-        self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
-
-        # fid
-        fid_loss = self.calculate_fid(gen_samples)
-        self.logger.log_metrics({'fid_metric': fid_loss}, step=self.current_epoch)
+        inception_score.update((gen_samples.cpu().clamp(-1, 1) + 1) / 2)
+        inception_score = inception_score.compute()[0].item()
+        return inception_score

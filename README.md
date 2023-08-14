@@ -28,4 +28,4 @@ Celeba v1: unconditional
 
 Pepe v6: unconditional
 
-![last_results_pepe_v6](docs/twitch_emotes/final_pred.png)
+![last_results_pepe_v6](docs/pepe/final_pred.png)
