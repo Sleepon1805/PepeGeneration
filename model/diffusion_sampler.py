@@ -91,8 +91,7 @@ class DDPM_Diffusion(Sampler):
         self.diffusion_steps = config.diffusion_steps
 
         self.beta = torch.linspace(self.beta_min, self.beta_max, self.diffusion_steps)
-        self.alpha = 1 - self.beta
-        self.alpha_hat = torch.cumprod(self.alpha, dim=0)
+        self.alpha = torch.cumprod(1 - self.beta, dim=0)
 
     def init_timesteps(self):
         return torch.arange(self.config.diffusion_steps - 1, 0, -1, device=self.device)
@@ -104,17 +103,17 @@ class DDPM_Diffusion(Sampler):
         return torch.randn(shape, device=self.device)
 
     def noise_images(self, images, t):
-        sqrt_alpha_hat = torch.sqrt(self.alpha_hat[t]).view(-1, 1, 1, 1)
-        sqrt_one_minus_alpha_hat = torch.sqrt(1 - self.alpha_hat[t]).view(-1, 1, 1, 1)
-        epsilon = torch.randn_like(images, device=self.device)
-        noised_image = sqrt_alpha_hat * images + sqrt_one_minus_alpha_hat * epsilon
-        return noised_image, epsilon
+        sqrt_alpha = torch.sqrt(self.alpha[t]).view(-1, 1, 1, 1)
+        sqrt_one_minus_alpha = torch.sqrt(1 - self.alpha[t]).view(-1, 1, 1, 1)
+        noise = torch.randn_like(images, device=self.device)
+        noised_image = sqrt_alpha * images + sqrt_one_minus_alpha * noise
+        return noised_image, noise
 
     def noise_images_one_step(self, prev_step_images, t):
         beta = self.beta[t].view(-1, 1, 1, 1)
-        epsilon = torch.randn_like(prev_step_images, device=self.device)
-        noised_image = torch.sqrt(1 - beta) * prev_step_images + torch.sqrt(beta) * epsilon
-        return noised_image, epsilon
+        noise = torch.randn_like(prev_step_images, device=self.device)
+        noised_image = torch.sqrt(1 - beta) * prev_step_images + torch.sqrt(beta) * noise
+        return noised_image, noise
 
     def denoise_step(self, model: LightningModule, batch, t):
         images = batch[0]
@@ -126,11 +125,10 @@ class DDPM_Diffusion(Sampler):
             noise = torch.zeros_like(images)
 
         alpha = self.alpha[t].view(-1, 1, 1, 1)
-        alpha_hat = self.alpha_hat[t].view(-1, 1, 1, 1)
         beta = self.beta[t].view(-1, 1, 1, 1)
 
-        denoised_image = 1 / torch.sqrt(alpha) * (images - ((1 - alpha) / (torch.sqrt(1 - alpha_hat)))
-                                                  * predicted_noise) + torch.sqrt(beta) * noise
+        denoised_image = 1 / torch.sqrt(1 - beta) * (images - (beta / (torch.sqrt(1 - alpha)))
+                                                     * predicted_noise) + torch.sqrt(beta) * noise
         return denoised_image
 
     def visualize_generation_process(self, model, batch, progress: Progress = None, seed=42):
