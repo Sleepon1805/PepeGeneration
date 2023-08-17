@@ -3,7 +3,7 @@ import abc
 import torch
 import numpy as np
 
-from config import Config, SDE_Config
+from config import Config, SamplingConfig
 
 
 class SDE(abc.ABC):
@@ -281,13 +281,13 @@ class VESDE(SDE):
         timestep = (t * (self.N - 1) / self.T).long()
         sigma = self.discrete_sigmas.to(t.device)[timestep]
         adjacent_sigma = torch.where(timestep == 0, torch.zeros_like(t),
-                                     self.discrete_sigmas[timestep - 1].to(t.device))
-        f = torch.zeros_like(batch)
+                                     self.discrete_sigmas.to(t.device)[timestep - 1])
+        f = torch.zeros_like(x)
         G = torch.sqrt(sigma ** 2 - adjacent_sigma ** 2)
         return f, G
 
 
-def get_sde(sde_name, sde_config: SDE_Config) -> SDE:
+def get_sde(sde_name, sde_config: SamplingConfig) -> SDE:
     if sde_name.lower() == 'vesde':
         sde = VESDE(sigma_min=sde_config.sigma_min, sigma_max=sde_config.sigma_max, N=sde_config.num_scales)
     elif sde_name.lower() == 'vpsde':

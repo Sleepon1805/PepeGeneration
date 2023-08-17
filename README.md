@@ -1,20 +1,21 @@
+Used papers:
+ - https://arxiv.org/abs/2006.11239
+ - https://arxiv.org/abs/2011.13456
+
 Used repos:
  - https://github.com/openai/improved-diffusion
  - https://github.com/awjuliani/pytorch-diffusion
  - https://github.com/dome272/Diffusion-Models-pytorch
+ - https://github.com/yang-song/score_sde_pytorch
 
 TODOs:
- - log FID,
  - (?) setup hparams logging,
- - try out pepe emoticons from bttv and 7tv,
- - (?) find a way to train on pepe dataset without celeba pretraining,
+ - collect a new Pepe dataset
  - try bigger image size or interpolate (upscale) images to bigger size,
- - try different number of diffusion steps
- - (?) use flash attention,
+ - (?) use flash attention (https://github.com/Dao-AILab/flash-attention),
  - visualise influence of condition on celeba generation
 
 Modifications:
- - (?) fix distribution during training,
  - conditioning,
  - super resolution model,
  - SDE in diffusion (https://arxiv.org/pdf/2011.13456.pdf, https://arxiv.org/pdf/2206.00364.pdf),
@@ -22,7 +23,7 @@ Modifications:
 
 Last results:
 
-Celeba v1: unconditional
+Celeba v11: unconditional
 
 ![last_results_celeba_v1](docs/celeba/final_pred.png)
 

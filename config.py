@@ -57,14 +57,17 @@ class Config:
 
 
 @dataclass
-class SDE_Config:
+class SamplingConfig:
     # SDE sampling params
-    sde_name: str = 'VPSDE'
-    beta_min: float = 0.1
-    beta_max: float = 20.
+    sampler: str = 'ddpm'  # ddpm = default, pc_sampler, ode_solver
+    sde_name: str = 'VPSDE'  # VPSDE, subVPSDE, VESDE
+    beta_min: float = 0.1  # VPSDE, subVPSDE param
+    beta_max: float = 20.  # VPSDE, subVPSDE param
+    sigma_min: float = 0.01  # VESDE param
+    sigma_max: float = 50.  # VESDE param
     num_scales: int = 1000
-    predictor_name: str = 'reverse_diffusion'
-    corrector_name: str = 'langevin'
+    predictor_name: str = 'euler_maruyama'  # none, ancestral_sampling, reverse_diffusion, euler_maruyama
+    corrector_name: str = 'langevin'  # none, langevin, ald
     snr: float = 0.01
     num_corrector_steps: str = 1
     probability_flow: bool = False

@@ -7,9 +7,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
     MofNCompleteColumn
-import imageio
 
-from config import Paths, Config, SDE_Config
+from config import Paths, Config, SamplingConfig
 from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
@@ -17,7 +16,7 @@ from data.condition_utils import encode_condition
 from SDE_sampling.sde_samplers import PC_Sampler, ODE_Sampler
 
 
-def inference(checkpoint: Path, condition=None, sde_sampling: bool = True, grid_shape=(4, 4), calculate_metrics=False,
+def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_metrics=False,
               save_images=True, on_gpu=True):
     folder_to_save = checkpoint.parents[1].joinpath('results/')
     if not os.path.exists(folder_to_save):
@@ -37,13 +36,19 @@ def inference(checkpoint: Path, condition=None, sde_sampling: bool = True, grid_
 
     model, config = load_model_and_config(checkpoint, device)
 
-    if sde_sampling:
-        sde_config = SDE_Config()
-        if sde_config.predictor_name.lower() == 'ode_solver':
-            model.sampler = ODE_Sampler(config, sde_config)
-        else:
-            model.sampler = PC_Sampler(config, sde_config)
-        model.sampler.to(device)
+    # set up sampler
+    sampling_config = SamplingConfig()
+    if sampling_config.sampler.lower() in ('ddpm', 'default'):
+        print('Using default DDPM Sampler for evaluation.')
+    elif sampling_config.sampler.lower() == 'ode_solver':
+        print('Using ODE Solver as Sampler for evaluation.')
+        model.sampler = ODE_Sampler(config, sampling_config)
+    elif sampling_config.sampler.lower() == 'pc_sampler':
+        print('Using PC Sampler for evaluation.')
+        model.sampler = PC_Sampler(config, sampling_config)
+    else:
+        raise ValueError
+    model.sampler.to(device)
 
     # get fake batch with zero'ed images and encoded condition
     fake_batch = create_input_batch(condition, grid_shape[0] * grid_shape[1], config)
@@ -127,7 +132,7 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
     dataset = PepeDataset(config.dataset_name, config.image_size, paths=Paths(), augments=None)
     train_set, val_set = torch.utils.data.random_split(dataset, config.dataset_split,
                                                        generator=torch.Generator().manual_seed(137))
-    val_loader = torch.utils.data.DataLoader(val_set, batch_size=config.batch_size, pin_memory=True,
+    val_loader = torch.utils.data.DataLoader(val_set, batch_size=gen_samples.shape[0], pin_memory=True,
                                              num_workers=0)
     with progress:
         progress_bar_task = progress.add_task("[white]Adding real images to FID", total=len(val_loader))
@@ -147,15 +152,13 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 if __name__ == '__main__':
     dataset_name = 'celeba'
     version = 11
-    sample_with_sde = True
-    ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/last.ckpt'))[-1])
+    ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/epoch=*.ckpt'))[-1])
 
     inference(
         ckpt,
         condition=None,
-        sde_sampling=sample_with_sde,
-        grid_shape=(16, 16),
+        grid_shape=(4, 4),
         calculate_metrics=False,
         save_images=False,
-        on_gpu=True
+        on_gpu=True,
     )

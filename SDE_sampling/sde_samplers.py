@@ -1,14 +1,14 @@
 import torch
 from scipy import integrate
 
-from config import Config, SDE_Config
+from config import Config, SamplingConfig
 from model.diffusion_sampler import Sampler
 from SDE_sampling.sde_lib import get_sde, VPSDE, subVPSDE, VESDE
 from SDE_sampling.predictors_correctors import PREDICTORS, CORRECTORS, ReverseDiffusionPredictor, Predictor, Corrector
 
 
 class PC_Sampler(Sampler):
-    def __init__(self, config: Config, sde_config: SDE_Config):
+    def __init__(self, config: Config, sde_config: SamplingConfig):
         super().__init__(config)
         self.sde_config = sde_config
 
@@ -93,6 +93,7 @@ class ODE_Sampler(Sampler):
         ode_func = self.get_ode_func(score_fn, shape)
 
         # Black-box ODE solver for the probability flow ODE
+        print('Generating samples with ODE Solver. It will take some time.')
         solution = integrate.solve_ivp(ode_func, (self.sde.T, self.sde.eps), x,
                                        rtol=self.rtol, atol=self.atol, method=self.method)
         x = torch.tensor(solution.y[:, -1]).reshape(shape).to(self.device).type(torch.float32)
