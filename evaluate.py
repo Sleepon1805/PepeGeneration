@@ -39,12 +39,12 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_met
     # set up sampler
     sampling_config = SamplingConfig()
     if sampling_config.sampler.lower() in ('ddpm', 'default'):
-        print('Using default DDPM Sampler for evaluation.')
+        print('Using default DDPM Sampler as evaluation sampler.')
     elif sampling_config.sampler.lower() == 'ode_solver':
-        print('Using ODE Solver as Sampler for evaluation.')
+        print('Using ODE Solver as evaluation sampler.')
         model.sampler = ODE_Sampler(config, sampling_config)
     elif sampling_config.sampler.lower() == 'pc_sampler':
-        print('Using PC Sampler for evaluation.')
+        print('Using PC Sampler as evaluation sampler.')
         model.sampler = PC_Sampler(config, sampling_config)
     else:
         raise ValueError
@@ -87,8 +87,10 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_met
         print(f'Inception score: {inception_score}')
 
 
-def load_model_and_config(checkpoint: Path, device: str) -> (PepeGenerator, Config):
+def load_model_and_config(checkpoint: Path | str, device: str) -> (PepeGenerator, Config):
     print(f'Loaded model from {checkpoint}')
+    if isinstance(checkpoint, str):
+        checkpoint = Path(checkpoint)
 
     with open(checkpoint.parents[1].joinpath('config.pkl'), 'rb') as config_file:
         try:
@@ -97,7 +99,7 @@ def load_model_and_config(checkpoint: Path, device: str) -> (PepeGenerator, Conf
             print('Could not read config from .yaml file. Using default Config().')
             config = Config()
 
-    model = PepeGenerator.load_from_checkpoint(checkpoint, config=config, strict=False)
+    model = PepeGenerator.load_from_checkpoint(checkpoint, config=config, strict=False, map_location=device)
     model.eval(), model.freeze(), model.to(device)
 
     return model, config

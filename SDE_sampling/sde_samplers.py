@@ -42,8 +42,8 @@ class PC_Sampler(Sampler):
 
         predictor, corrector = self._get_pc(model)
 
-        x, x_mean = predictor.update_fn(batch, t.repeat(x.shape[0]))
-        x, x_mean = corrector.update_fn((x, *labels), t.repeat(x.shape[0]))
+        x, x_mean = predictor.update(batch, t.repeat(x.shape[0]))
+        x, x_mean = corrector.update((x, *labels), t.repeat(x.shape[0]))
         out = x_mean if self.denoise else x
         return out
 
@@ -120,7 +120,7 @@ class ODE_Sampler(Sampler):
         # Reverse diffusion predictor for denoising
         predictor = ReverseDiffusionPredictor(self.sde, score_fn, probability_flow=True)
         vec_eps = torch.ones(x.shape[0], device=x.device) * self.sde.eps
-        _, x = predictor.update_fn((x, ), vec_eps)
+        _, x = predictor.update((x,), vec_eps)
         return x
 
 

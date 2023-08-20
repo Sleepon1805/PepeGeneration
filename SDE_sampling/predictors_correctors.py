@@ -16,7 +16,7 @@ class Predictor(abc.ABC):
         self.score_fn = score_fn
 
     @abc.abstractmethod
-    def update_fn(self, batch, t):
+    def update(self, batch, t):
         """
         One update of the predictor.
 
@@ -41,7 +41,7 @@ class Corrector(abc.ABC):
         self.n_steps = n_steps
 
     @abc.abstractmethod
-    def update_fn(self, batch, t):
+    def update(self, batch, t):
         """
         One update of the corrector.
 
@@ -59,7 +59,7 @@ class EulerMaruyamaPredictor(Predictor):
     def __init__(self, sde, score_fn, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
 
-    def update_fn(self, batch, t):
+    def update(self, batch, t):
         x = batch[0]
         dt = -1. / self.rsde.N
         z = torch.randn_like(x)
@@ -73,7 +73,7 @@ class ReverseDiffusionPredictor(Predictor):
     def __init__(self, sde, score_fn, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
 
-    def update_fn(self, batch, t):
+    def update(self, batch, t):
         x = batch[0]
         f, G = self.rsde.discretize(batch, t)
         z = torch.randn_like(x)
@@ -115,7 +115,7 @@ class AncestralSamplingPredictor(Predictor):
         x = x_mean + torch.sqrt(beta)[:, None, None, None] * noise
         return x, x_mean
 
-    def update_fn(self, x, t):
+    def update(self, x, t):
         if isinstance(self.sde, sde_lib.VESDE):
             return self.vesde_update_fn(x, t)
         elif isinstance(self.sde, sde_lib.VPSDE):
@@ -128,7 +128,7 @@ class NonePredictor(Predictor):
     def __init__(self, sde, score_fn, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
 
-    def update_fn(self, batch, t):
+    def update(self, batch, t):
         x = batch[0]
         return x, x
 
@@ -141,7 +141,7 @@ class LangevinCorrector(Corrector):
                 and not isinstance(sde, sde_lib.subVPSDE):
             raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
 
-    def update_fn(self, batch, t):
+    def update(self, batch, t):
         x = batch[0]
         sde = self.sde
         score_fn = self.score_fn
@@ -178,7 +178,7 @@ class AnnealedLangevinDynamics(Corrector):
                 and not isinstance(sde, sde_lib.subVPSDE):
             raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
 
-    def update_fn(self, batch, t):
+    def update(self, batch, t):
         x = batch[0]
         sde = self.sde
         score_fn = self.score_fn
@@ -208,7 +208,7 @@ class NoneCorrector(Corrector):
     def __init__(self, sde, score_fn, snr, n_steps):
         super().__init__(sde, score_fn, snr, n_steps)
 
-    def update_fn(self, batch, t):
+    def update(self, batch, t):
         x = batch[0]
         return x, x
 

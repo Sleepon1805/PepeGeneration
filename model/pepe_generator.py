@@ -1,7 +1,5 @@
-import numpy as np
 import torch
 import pickle
-from typing import Tuple
 from rich.progress import Progress
 from lightning import LightningModule
 from torchmetrics.image.fid import FrechetInceptionDistance

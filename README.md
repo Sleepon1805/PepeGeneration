@@ -9,17 +9,12 @@ Used repos:
  - https://github.com/yang-song/score_sde_pytorch
 
 TODOs:
- - (?) setup hparams logging,
- - collect a new Pepe dataset
- - try bigger image size or interpolate (upscale) images to bigger size,
+ - (?) fix hparams logging in tensorboard,
+ - collect a new Pepe dataset, train a Pepe generation model,
+ - try bigger image size or train an upscaling model,
  - (?) use flash attention (https://github.com/Dao-AILab/flash-attention),
- - visualise influence of condition on celeba generation
-
-Modifications:
- - conditioning,
- - super resolution model,
- - SDE in diffusion (https://arxiv.org/pdf/2011.13456.pdf, https://arxiv.org/pdf/2206.00364.pdf),
- - use conditional embedding to apply features from celeba dataset on generated Pepe,
+ - visualise influence of condition on celeba generation,
+ - implement conditional SDE Sampling,
 
 Last results:
 
