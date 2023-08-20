@@ -1,4 +1,5 @@
 import torch
+from time import time
 from scipy import integrate
 
 from config import Config, SamplingConfig
@@ -94,9 +95,11 @@ class ODE_Sampler(Sampler):
 
         # Black-box ODE solver for the probability flow ODE
         print('Generating samples with ODE Solver. It will take some time.')
+        ttime = time()
         solution = integrate.solve_ivp(ode_func, (self.sde.T, self.sde.eps), x,
                                        rtol=self.rtol, atol=self.atol, method=self.method)
         x = torch.tensor(solution.y[:, -1]).reshape(shape).to(self.device).type(torch.float32)
+        print(f'Generating samples with ODE Solver took {time() - ttime} seconds.')
 
         # Denoising is equivalent to running one predictor step without adding noise
         if self.denoise:

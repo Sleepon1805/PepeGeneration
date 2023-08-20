@@ -59,7 +59,7 @@ class Config:
 @dataclass
 class SamplingConfig:
     # SDE sampling params
-    sampler: str = 'ddpm'  # ddpm = default, pc_sampler, ode_solver
+    sampler: str = 'pc_sampler'  # ddpm = default, pc_sampler, ode_solver
     sde_name: str = 'VPSDE'  # VPSDE, subVPSDE, VESDE
     beta_min: float = 0.1  # VPSDE, subVPSDE param
     beta_max: float = 20.  # VPSDE, subVPSDE param
