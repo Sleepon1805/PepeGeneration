@@ -10,7 +10,7 @@ from lightning import LightningModule
 
 from config import DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig
 from SDE_sampling.sde_lib import get_sde, VPSDE, subVPSDE, VESDE
-from SDE_sampling.predictors_correctors import PREDICTORS, CORRECTORS, ReverseDiffusionPredictor, Predictor, Corrector
+from SDE_sampling.predictors_correctors import get_predictor, get_corrector, Predictor, Corrector
 
 
 class Sampler(ABC):
@@ -186,7 +186,7 @@ class PC_Sampler(Sampler):
         assert isinstance(config, PCSamplingConfig)
         super().__init__(config)
 
-        self.n_steps = config.num_corrector_steps
+        self.num_corrector_steps = config.num_corrector_steps
         self.probability_flow = config.probability_flow
         self.denoise = config.denoise
         self.snr = config.snr
@@ -216,15 +216,16 @@ class PC_Sampler(Sampler):
         predictor, corrector = self._get_pc(model)
 
         x, x_mean = predictor.update(batch, t.repeat(x.shape[0]))
-        x, x_mean = corrector.update((x, *labels), t.repeat(x.shape[0]))
+        for _ in range(self.num_corrector_steps):
+            x, x_mean = corrector.update((x, *labels), t.repeat(x.shape[0]))
         out = x_mean if self.denoise else x
         return out
 
     def _get_pc(self, model) -> (Predictor, Corrector):
         score_fn = get_score_fn(self.sde, model)
 
-        predictor = PREDICTORS[self.predictor_name](self.sde, score_fn, self.probability_flow)
-        corrector = CORRECTORS[self.corrector_name](self.sde, score_fn, self.snr, self.n_steps)
+        predictor = get_predictor(self.predictor_name, self.sde, score_fn, self.probability_flow)
+        corrector = get_corrector(self.corrector_name, self.sde, score_fn, self.snr)
         return predictor, corrector
 
 
@@ -240,19 +241,19 @@ class ODE_Sampler(Sampler):
         self.denoise = config.denoise
 
     def init_timesteps(self):
-        pass
+        raise NotImplementedError
 
     def sample_timesteps(self, n):
-        pass
+        raise NotImplementedError
+
+    def noise_images(self, images, t):
+        raise NotImplementedError
+
+    def denoise_step(self, model, batch, t):
+        raise NotImplementedError
 
     def prior_sampling(self, shape):
         return self.sde.prior_sampling(shape).to(self.device)
-
-    def noise_images(self, images, t):
-        pass
-
-    def denoise_step(self, model, batch, t):
-        pass
 
     def generate_samples(self, model, batch, progress=None, seed=42):
         x = batch[0]
@@ -291,7 +292,7 @@ class ODE_Sampler(Sampler):
     def denoise_update(self, batch, score_fn):
         x = batch[0]
         # Reverse diffusion predictor for denoising
-        predictor = ReverseDiffusionPredictor(self.sde, score_fn, probability_flow=True)
+        predictor = get_predictor('reverse_diffusion', self.sde, score_fn, probability_flow=True)
         vec_eps = torch.ones(x.shape[0], device=self.device) * self.sde.eps
         _, x = predictor.update(batch, vec_eps)
         return x
