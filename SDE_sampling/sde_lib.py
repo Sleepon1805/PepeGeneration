@@ -3,7 +3,7 @@ import abc
 import torch
 import numpy as np
 
-from config import Config, SamplingConfig
+from config import PCSamplingConfig, ODESamplingConfig
 
 
 class SDE(abc.ABC):
@@ -287,12 +287,13 @@ class VESDE(SDE):
         return f, G
 
 
-def get_sde(sde_name, sde_config: SamplingConfig) -> SDE:
-    if sde_name.lower() == 'vesde':
+def get_sde(sde_config) -> SDE:
+    assert isinstance(sde_config, PCSamplingConfig) or isinstance(sde_config, ODESamplingConfig)
+    if sde_config.sde_name.lower() == 'vesde':
         sde = VESDE(sigma_min=sde_config.sigma_min, sigma_max=sde_config.sigma_max, N=sde_config.num_scales)
-    elif sde_name.lower() == 'vpsde':
+    elif sde_config.sde_name.lower() == 'vpsde':
         sde = VPSDE(beta_min=sde_config.beta_min, beta_max=sde_config.beta_max, N=sde_config.num_scales)
-    elif sde_name.lower() == 'subvpsde':
+    elif sde_config.sde_name.lower() == 'subvpsde':
         sde = subVPSDE(beta_min=sde_config.beta_min, beta_max=sde_config.beta_max, N=sde_config.num_scales)
     else:
         raise ValueError

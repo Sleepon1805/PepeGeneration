@@ -1,7 +1,7 @@
 import os
 import sys
 import torch
-import lightning as L
+import lightning
 from lightning.pytorch.callbacks import ModelCheckpoint, ModelSummary, LearningRateMonitor, RichProgressBar
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.profilers import AdvancedProfiler
@@ -63,7 +63,7 @@ if __name__ == '__main__':
         LearningRateMonitor(logging_interval='epoch'),  # LR in logger
     ]
 
-    trainer = L.Trainer(
+    trainer = lightning.Trainer(
         max_epochs=50,
         accelerator='auto',
         callbacks=callbacks,
@@ -71,7 +71,7 @@ if __name__ == '__main__':
         # profiler=AdvancedProfiler(filename='profiler'),
         logger=logger,
         # num_sanity_val_steps=0,
-        precision='16-mixed'
+        precision=cfg.precision,
     )
 
     trainer.fit(

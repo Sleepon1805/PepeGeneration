@@ -1,12 +1,11 @@
 import torch
 import pickle
-from rich.progress import Progress
 from lightning import LightningModule
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.inception import InceptionScore
 
 from model.unet import UNetModel
-from model.diffusion_sampler import Sampler, DDPM_Diffusion
+from model.samplers import Sampler, DDPM_Sampler
 from config import Config
 
 
@@ -14,7 +13,7 @@ class PepeGenerator(LightningModule):
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
-        self.sampler: Sampler = DDPM_Diffusion(config)
+        self.sampler: Sampler = DDPM_Sampler(config.sampler_config)
         self.model = UNetModel(config)
 
         self.loss_func = torch.nn.MSELoss()
@@ -89,9 +88,6 @@ class PepeGenerator(LightningModule):
         loss = self.loss_func(output, noise)
         return loss
 
-    def generate_samples(self, batch, progress: Progress = None, seed=42) -> torch.Tensor:
-        return self.sampler.generate_samples(self, batch, progress, seed)
-
     """
     Methods for evaluation
     """
@@ -102,7 +98,7 @@ class PepeGenerator(LightningModule):
         """
 
         with self.trainer.progress_bar_callback.progress as progress:
-            gen_samples = self.generate_samples(batch, progress)
+            gen_samples = self.sampler.generate_samples(self, batch, progress)
 
         # images
         images = self.sampler.generated_samples_to_images(gen_samples, grid_size)

@@ -1,5 +1,4 @@
 import os
-import glob
 import torch
 import pickle
 import torchmetrics
@@ -8,15 +7,15 @@ import matplotlib.pyplot as plt
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
     MofNCompleteColumn
 
-from config import Paths, Config, SamplingConfig
+from config import Paths, Config, DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig
 from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
 
-from SDE_sampling.sde_samplers import PC_Sampler, ODE_Sampler
+from model.samplers import DDPM_Sampler, PC_Sampler, ODE_Sampler
 
 
-def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_metrics=False,
+def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 4), calculate_metrics=False,
               save_images=True, on_gpu=True):
     folder_to_save = checkpoint.parents[1].joinpath('results/')
     if not os.path.exists(folder_to_save):
@@ -37,18 +36,18 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_met
     model, config = load_model_and_config(checkpoint, device)
 
     # set up sampler
-    sampling_config = SamplingConfig()
-    if sampling_config.sampler.lower() in ('ddpm', 'default'):
+    if isinstance(sampling_config, DDPMSamplingConfig):
         print('Using default DDPM Sampler as evaluation sampler.')
-    elif sampling_config.sampler.lower() == 'ode_solver':
+        sampler = DDPM_Sampler(sampling_config)
+    elif isinstance(sampling_config, ODESamplingConfig):
         print('Using ODE Solver as evaluation sampler.')
-        model.sampler = ODE_Sampler(config, sampling_config)
-    elif sampling_config.sampler.lower() == 'pc_sampler':
+        sampler = ODE_Sampler(sampling_config)
+    elif isinstance(sampling_config, PCSamplingConfig):
         print('Using PC Sampler as evaluation sampler.')
-        model.sampler = PC_Sampler(config, sampling_config)
+        sampler = PC_Sampler(sampling_config)
     else:
         raise ValueError
-    model.sampler.to(device)
+    sampler.to(device)
 
     # get fake batch with zero'ed images and encoded condition
     fake_batch = create_input_batch(condition, grid_shape[0] * grid_shape[1], config)
@@ -59,8 +58,8 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_met
     # generate images
     with progress:
         # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
-        gen_samples = model.generate_samples(fake_batch, progress=progress)
-    gen_images = model.sampler.generated_samples_to_images(gen_samples, grid_shape)
+        gen_samples = sampler.generate_samples(model, fake_batch, progress=progress)
+    gen_images = sampler.generated_samples_to_images(gen_samples, grid_shape)
 
     # save distributions of generated samples
     if save_images:
@@ -154,10 +153,13 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 if __name__ == '__main__':
     dataset_name = 'celeba'
     version = 11
-    ckpt = Path(sorted(glob.glob(f'/home/sleepon/Downloads/version_11/checkpoints/epoch=07-fid_metric=1.83-val_loss=0.0254.ckpt'))[-1])
+    ckpt = Path(f'/home/sleepon/Downloads/version_11/checkpoints/epoch=07-fid_metric=1.83-val_loss=0.0254.ckpt')
+
+    sampling_cfg = PCSamplingConfig()  # PCSamplingConfig, ODESamplingConfig
 
     inference(
         ckpt,
+        sampling_config=sampling_cfg,
         condition=None,
         grid_shape=(3, 3),
         calculate_metrics=False,

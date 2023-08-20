@@ -21,13 +21,53 @@ class Paths:
 
 
 @dataclass
+class DDPMSamplingConfig:
+    # default DDPM sampler
+    beta_min: float = 0.0001
+    beta_max: float = 0.02
+    diffusion_steps: int = 1000
+
+
+@dataclass
+class PCSamplingConfig:
+    # Predictor-Corrector Sampler
+    sde_name: str = 'VPSDE'  # VPSDE, subVPSDE, VESDE
+    beta_min: float = 0.1  # VPSDE, subVPSDE param
+    beta_max: float = 20.  # VPSDE, subVPSDE param
+    sigma_min: float = 0.01  # VESDE param
+    sigma_max: float = 50.  # VESDE param
+    num_scales: int = 1000
+    predictor_name: str = 'euler_maruyama'  # none, ancestral_sampling, reverse_diffusion, euler_maruyama
+    corrector_name: str = 'langevin'  # none, langevin, ald
+    snr: float = 0.01
+    num_corrector_steps: int = 1
+    probability_flow: bool = False
+    denoise: bool = False
+
+
+@dataclass
+class ODESamplingConfig:
+    # ODE Solver
+    sde_name: str = 'VPSDE'  # VPSDE, subVPSDE, VESDE
+    beta_min: float = 0.1  # VPSDE, subVPSDE param
+    beta_max: float = 20.  # VPSDE, subVPSDE param
+    sigma_min: float = 0.01  # VESDE param
+    sigma_max: float = 50.  # VESDE param
+    num_scales: int = 1000
+    method: str = 'RK45'
+    rtol: float = 1e-5
+    atol: float = 1e-5
+    denoise: bool = False
+
+
+@dataclass
 class Config:
     # git commit hash for logging
     git_hash: str = curr_git_hash()
 
     # training params
-    sde_training: bool = False
     batch_size: int = 64
+    precision: str = '16-mixed'
     image_size: int = 64  # size of image NxN
     lr: float = 1e-4  # learning rate on training start
     scheduler: str = 'MultiStepLR'
@@ -42,11 +82,6 @@ class Config:
     pretrained_ckpt: str = None
     # pretrained_ckpt: str = './lightning_logs/celeba/version_6/checkpoints/last.ckpt'
 
-    # gaussian noise hparams
-    diffusion_steps: int = 1000
-    beta_min: float = 1e-4
-    beta_max: float = 0.02
-
     # model params
     init_channels: int = 128
     channel_mult: Tuple[int, int, int, int] = (1, 2, 4, 4)
@@ -55,21 +90,4 @@ class Config:
     dropout: float = 0.3
     use_second_attention: bool = True
 
-
-@dataclass
-class SamplingConfig:
-    # SDE sampling params
-    sampler: str = 'pc_sampler'  # ddpm = default, pc_sampler, ode_solver
-    sde_name: str = 'VPSDE'  # VPSDE, subVPSDE, VESDE
-    beta_min: float = 0.1  # VPSDE, subVPSDE param
-    beta_max: float = 20.  # VPSDE, subVPSDE param
-    sigma_min: float = 0.01  # VESDE param
-    sigma_max: float = 50.  # VESDE param
-    num_scales: int = 1000
-    predictor_name: str = 'euler_maruyama'  # none, ancestral_sampling, reverse_diffusion, euler_maruyama
-    corrector_name: str = 'langevin'  # none, langevin, ald
-    snr: float = 0.01
-    num_corrector_steps: int = 1
-    probability_flow: bool = False
-    denoise: bool = False
-
+    sampler_config = DDPMSamplingConfig()  # PCSamplingConfig(), ODESamplingConfig()
