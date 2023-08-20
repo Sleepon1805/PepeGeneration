@@ -99,7 +99,7 @@ def load_model_and_config(checkpoint: Path | str, device: str) -> (PepeGenerator
             print('Could not read config from .yaml file. Using default Config().')
             config = Config()
 
-    model = PepeGenerator.load_from_checkpoint(checkpoint, config=config, strict=False, map_location=device)
+    model = PepeGenerator.load_from_checkpoint(checkpoint, config=config, strict=False)
     model.eval(), model.freeze(), model.to(device)
 
     return model, config
@@ -154,12 +154,12 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 if __name__ == '__main__':
     dataset_name = 'celeba'
     version = 11
-    ckpt = Path(sorted(glob.glob(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/epoch=*.ckpt'))[-1])
+    ckpt = Path(sorted(glob.glob(f'/home/sleepon/Downloads/version_11/checkpoints/epoch=07-fid_metric=1.83-val_loss=0.0254.ckpt'))[-1])
 
     inference(
         ckpt,
         condition=None,
-        grid_shape=(4, 4),
+        grid_shape=(3, 3),
         calculate_metrics=False,
         save_images=False,
         on_gpu=True,
