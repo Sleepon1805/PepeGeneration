@@ -69,7 +69,7 @@ class SamplingConfig:
     predictor_name: str = 'euler_maruyama'  # none, ancestral_sampling, reverse_diffusion, euler_maruyama
     corrector_name: str = 'langevin'  # none, langevin, ald
     snr: float = 0.01
-    num_corrector_steps: str = 1
+    num_corrector_steps: int = 1
     probability_flow: bool = False
     denoise: bool = False
 
