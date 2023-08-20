@@ -1,0 +1,11 @@
+GitPython
+lightning==2.0.0
+lmdb
+matplotlib
+numpy
+rich
+torch-fidelity
+torch
+torchvision
+torchmetrics
+zstandard
