@@ -5,7 +5,7 @@ from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.inception import InceptionScore
 
 from model.unet import UNetModel
-from model.samplers import Sampler, DDPM_Sampler
+from model.samplers import Sampler, get_sampler
 from config import Config
 
 
@@ -13,7 +13,7 @@ class PepeGenerator(LightningModule):
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
-        self.sampler: Sampler = DDPM_Sampler(config.sampler_config)
+        self.sampler: Sampler = get_sampler(config.sampler_config)
         self.model = UNetModel(config)
 
         self.loss_func = torch.nn.MSELoss()

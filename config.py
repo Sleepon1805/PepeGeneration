@@ -22,7 +22,8 @@ class Paths:
 
 @dataclass
 class DDPMSamplingConfig:
-    # default DDPM sampler
+    """ default DDPM sampler """
+    # DDPM params
     beta_min: float = 0.0001
     beta_max: float = 0.02
     diffusion_steps: int = 1000
@@ -30,33 +31,40 @@ class DDPMSamplingConfig:
 
 @dataclass
 class PCSamplingConfig:
-    # Predictor-Corrector Sampler
-    sde_name: str = 'VPSDE'  # VPSDE, subVPSDE, VESDE
+    """ Predictor-Corrector Sampler """
+    # sde params
+    sde_name: str = 'VPSDE'  # one of VPSDE, subVPSDE, VESDE
+    num_scales: int = 1000  # number of discretization timesteps
     beta_min: float = 0.1  # VPSDE, subVPSDE param
     beta_max: float = 20.  # VPSDE, subVPSDE param
     sigma_min: float = 0.01  # VESDE param
     sigma_max: float = 50.  # VESDE param
-    num_scales: int = 1000
+    # predictor params
     predictor_name: str = 'euler_maruyama'  # none, ancestral_sampling, reverse_diffusion, euler_maruyama
+    # corrector params
     corrector_name: str = 'langevin'  # none, langevin, ald
-    snr: float = 0.01
+    snr: float = 0.01  # signal-to-noise ratio
     num_corrector_steps: int = 1
+    # sampler params
     probability_flow: bool = False
     denoise: bool = False
 
 
 @dataclass
 class ODESamplingConfig:
-    # ODE Solver
+    """ ODE Solver """
+    # sde params
     sde_name: str = 'VPSDE'  # VPSDE, subVPSDE, VESDE
+    num_scales: int = 1000  # number of discretization timesteps
     beta_min: float = 0.1  # VPSDE, subVPSDE param
     beta_max: float = 20.  # VPSDE, subVPSDE param
     sigma_min: float = 0.01  # VESDE param
     sigma_max: float = 50.  # VESDE param
-    num_scales: int = 1000
+    # ode solver params
     method: str = 'RK45'
     rtol: float = 1e-5
     atol: float = 1e-5
+    # sampler params
     denoise: bool = False
 
 
@@ -79,8 +87,8 @@ class Config:
     dataset_name: str = 'celeba'
     use_condition: bool = False
     condition_size: int = CONDITION_SIZE
-    pretrained_ckpt: str = None
-    # pretrained_ckpt: str = './lightning_logs/celeba/version_6/checkpoints/last.ckpt'
+    # pretrained_ckpt: str = None
+    pretrained_ckpt: str = './lightning_logs/celeba/version_11/checkpoints/last.ckpt'
 
     # model params
     init_channels: int = 128
@@ -90,4 +98,4 @@ class Config:
     dropout: float = 0.3
     use_second_attention: bool = True
 
-    sampler_config = DDPMSamplingConfig()  # PCSamplingConfig(), ODESamplingConfig()
+    sampler_config = PCSamplingConfig()  # one of DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()

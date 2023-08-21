@@ -340,3 +340,14 @@ def get_score_fn(sde, model):
         raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
 
     return score_fn
+
+
+def get_sampler(sampler_config):
+    if isinstance(sampler_config, DDPMSamplingConfig):
+        return DDPM_Sampler(sampler_config)
+    elif isinstance(sampler_config, PCSamplingConfig):
+        return PC_Sampler(sampler_config)
+    elif isinstance(sampler_config, ODESamplingConfig):
+        return ODE_Sampler(sampler_config)
+    else:
+        raise ValueError
