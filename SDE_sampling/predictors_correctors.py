@@ -72,7 +72,7 @@ class AncestralSamplingPredictor(Predictor):
         timestep = (t * (self.sde.N - 1) / self.sde.T).long()
         sigma = self.sde.discrete_sigmas.to(t.device)[timestep]
         adjacent_sigma = torch.where(timestep == 0, torch.zeros_like(t), self.sde.discrete_sigmas.to(t.device)[timestep - 1])
-        score = self.score_fn(x, t)
+        score = self.score_fn(batch, t)
         x_mean = x + score * (sigma ** 2 - adjacent_sigma ** 2)[:, None, None, None]
         std = torch.sqrt((adjacent_sigma ** 2 * (sigma ** 2 - adjacent_sigma ** 2)) / (sigma ** 2))
         noise = torch.randn_like(x)

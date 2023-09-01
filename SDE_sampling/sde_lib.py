@@ -86,7 +86,7 @@ class ReverseSDE:
         score = self.score_fn(batch, t)
         drift = drift - diffusion[:, None, None, None] ** 2 * score * (0.5 if self.probability_flow else 1.)
         # Set the diffusion function to zero for ODEs.
-        diffusion = 0. if self.probability_flow else diffusion
+        diffusion *= (1 - self.probability_flow)
         return drift, diffusion
 
     @abc.abstractmethod
