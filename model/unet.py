@@ -21,12 +21,14 @@ class UNetModel(LightningModule):
         self.out_channels = 3
 
         if self.use_condition:
+            print('Using condition in model')
             self.time_embed_dim = self.init_channels
             self.cond_embed_dim = self.init_channels * 3
             self.embed_dim = self.time_embed_dim + self.cond_embed_dim
             self.time_embed = TimeEmbedding(self.init_channels, self.time_embed_dim)
             self.condition_emb = ConditionEmbedding(self.init_channels, self.cond_embed_dim, config.condition_size)
         else:
+            print('Not using condition in model')
             self.embed_dim = self.init_channels * 4
             self.time_embedd = TimeEmbedding(self.init_channels, self.embed_dim)
 

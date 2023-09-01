@@ -1,18 +1,16 @@
 import os
 import torch
-import pickle
 import torchmetrics
 from pathlib import Path
 import matplotlib.pyplot as plt
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
     MofNCompleteColumn
 
-from config import Paths, Config, DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig
 from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
-
 from model.samplers import DDPM_Sampler, PC_Sampler, ODE_Sampler
+from config import Paths, Config, DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig, load_config
 
 
 def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 4), calculate_metrics=False,
@@ -45,6 +43,9 @@ def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 
     elif isinstance(sampling_config, PCSamplingConfig):
         print('Using PC Sampler as evaluation sampler.')
         sampler = PC_Sampler(sampling_config)
+    elif sampling_config is None:
+        sampler = model.sampler
+        print(f'Using sampler from model checkpoint: {sampler.__class__.__name__}')
     else:
         raise ValueError
     sampler.to(device)
@@ -88,15 +89,7 @@ def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 
 
 def load_model_and_config(checkpoint: Path | str, device: str) -> (PepeGenerator, Config):
     print(f'Loaded model from {checkpoint}')
-    if isinstance(checkpoint, str):
-        checkpoint = Path(checkpoint)
-
-    with open(checkpoint.parents[1].joinpath('config.pkl'), 'rb') as config_file:
-        try:
-            config = pickle.load(config_file)
-        except:
-            print('Could not read config from .yaml file. Using default Config().')
-            config = Config()
+    config = load_config(checkpoint, path_to_checkpoint=True)
 
     model = PepeGenerator.load_from_checkpoint(checkpoint, config=config, strict=False)
     model.eval(), model.freeze(), model.to(device)
@@ -152,10 +145,10 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 if __name__ == '__main__':
     dataset_name = 'celeba'
-    version = 11
-    ckpt = Path(f'/home/sleepon/Downloads/version_11/checkpoints/epoch=07-fid_metric=1.83-val_loss=0.0254.ckpt')
+    version = 13
+    ckpt = Path(f'./lightning_logs/celeba/version_{version}/checkpoints/last.ckpt')
 
-    sampling_cfg = PCSamplingConfig()  # PCSamplingConfig, ODESamplingConfig
+    sampling_cfg = None  # None, DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
 
     inference(
         ckpt,

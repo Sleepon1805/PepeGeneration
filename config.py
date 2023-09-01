@@ -1,7 +1,9 @@
 import os
 import git
-from dataclasses import dataclass
+import pickle
 from typing import Tuple
+from pathlib import Path
+from dataclasses import dataclass
 
 from data.condition_utils import CONDITION_SIZE
 
@@ -87,8 +89,8 @@ class Config:
     dataset_name: str = 'celeba'
     use_condition: bool = False
     condition_size: int = CONDITION_SIZE
-    # pretrained_ckpt: str = None
-    pretrained_ckpt: str = './lightning_logs/celeba/version_11/checkpoints/last.ckpt'
+    pretrained_ckpt: str = None
+    # pretrained_ckpt: str = './lightning_logs/celeba/version_12/checkpoints/last.ckpt'
 
     # model params
     init_channels: int = 128
@@ -98,4 +100,45 @@ class Config:
     dropout: float = 0.3
     use_second_attention: bool = True
 
-    sampler_config = PCSamplingConfig()  # one of DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
+    sampler_config = DDPMSamplingConfig()  # one of DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
+
+
+def save_config(config: Config, save_folder: str | Path):
+    if isinstance(save_folder, str):
+        save_folder = Path(save_folder)
+
+    assert os.path.isdir(save_folder)
+    os.makedirs(save_folder, exist_ok=True)
+
+    # save config and sampler config
+    with open(save_folder.joinpath('config.pkl'), 'wb') as f:
+        pickle.dump(config, f, pickle.HIGHEST_PROTOCOL)
+    with open(save_folder.joinpath('sampler_config.pkl'), 'wb') as f:
+        # must be saved separately due to different object classes of different sampler_configs
+        pickle.dump(config.sampler_config, f, pickle.HIGHEST_PROTOCOL)
+
+
+def load_config(path: str | Path, path_to_checkpoint: bool):
+    if isinstance(path, str):
+        path = Path(path)
+    if path_to_checkpoint:
+        path = path.parents[1]
+
+    try:
+        with open(path.joinpath('config.pkl'), 'rb') as config_file:
+            config = pickle.load(config_file)
+    except Exception as e:
+        print(f'Could not read config from .pkl file: {e}')
+        print('Using default Config().')
+        config = Config()
+
+    try:
+        with open(path.joinpath('sampler_config.pkl'), 'rb') as sampler_config_file:
+            sampler_config = pickle.load(sampler_config_file)
+    except Exception as e:
+        print(f'Could not read sampler_config from .pkl file: {e}')
+        print('Using DDPMSamplingConfig().')
+        sampler_config = DDPMSamplingConfig()
+
+    config.sampler_config = sampler_config
+    return config

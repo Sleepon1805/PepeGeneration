@@ -1,12 +1,11 @@
 import torch
-import pickle
 from lightning import LightningModule
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.inception import InceptionScore
 
 from model.unet import UNetModel
 from model.samplers import Sampler, get_sampler
-from config import Config
+from config import Config, save_config
 
 
 class PepeGenerator(LightningModule):
@@ -62,14 +61,14 @@ class PepeGenerator(LightningModule):
 
     def on_train_start(self) -> None:
         # save hparams
-        with open(self.logger.log_dir + '/config.pkl', 'wb') as f:
-            pickle.dump(self.config, f, pickle.HIGHEST_PROTOCOL)
+        save_config(self.config, self.logger.log_dir)
         self.logger.log_hyperparams(self.config.__dict__)
 
     def forward(self, batch, t):
         x, *labels = batch
 
         if len(labels) == 0:
+            # take random condition
             cond = torch.bernoulli(torch.full((x.shape[0], self.config.condition_size),
                                               0.5, device=self.device)) * 2 - 1
         elif len(labels) == 1:
