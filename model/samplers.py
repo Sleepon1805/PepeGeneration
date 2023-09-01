@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from lightning import LightningModule
 
 from config import DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig
-from SDE_sampling.sde_lib import get_sde, VPSDE, subVPSDE, VESDE
+from SDE_sampling.sde_lib import get_sde, SDE, ReverseSDE, VPSDE, subVPSDE, VESDE
 from SDE_sampling.predictors_correctors import get_predictor, get_corrector, Predictor, Corrector
 
 
@@ -291,7 +291,7 @@ class ODE_Sampler(Sampler):
         def ode_func(t, x):
             x = torch.from_numpy(x.reshape(shape)).to(self.device).type(torch.float32)
             vec_t = torch.ones(shape[0], device=self.device) * t
-            rsde = self.sde.reverse(score_fn, probability_flow=True)
+            rsde = ReverseSDE(self.sde, score_fn, probability_flow=True)
             drift = rsde.get_sde((x,), vec_t)[0]
             return drift.detach().cpu().numpy().reshape((-1,))
         return ode_func
@@ -305,46 +305,18 @@ class ODE_Sampler(Sampler):
         return x
 
 
-def get_score_fn(sde, model):
-    continuous = isinstance(model.config.sampler_config, PCSamplingConfig)
-    if (isinstance(sde, VPSDE) and continuous) or isinstance(sde, subVPSDE):
-        def score_fn(batch, t):
-            # For VP-trained models, t=0 corresponds to the lowest noise level
-            # The maximum value of time embedding is assumed to 999 for
-            # continuously-trained models.
-            images = batch[0]
-            ts = t * 999
-            score = model(batch, ts)
-            std = sde.marginal_prob(torch.zeros_like(images), t)[1]
-            score = -score / std[:, None, None, None]
-            return score
-
-    elif isinstance(sde, VPSDE) and not continuous:
-        def score_fn(batch, t):
-            # For VP-trained models, t=0 corresponds to the lowest noise level
-            ts = t * (sde.N - 1)
-            score = model(batch, ts)
-            std = sde.sqrt_1m_alphas_cumprod.to(ts.device)[ts.long()]
-            score = -score / std[:, None, None, None]
-            return score
-
-    elif isinstance(sde, VESDE) and continuous:
-        def score_fn(x, t):
-            labels = sde.marginal_prob(torch.zeros_like(x), t)[1]
-            score = model(x, labels)
-            return score
-
-    elif isinstance(sde, VESDE) and not continuous:
-        def score_fn(x, t):
-            # For VE-trained models, t=0 corresponds to the highest noise level
-            labels = sde.T - t
-            labels *= sde.N - 1
-            labels = torch.round(labels).long()
-            score = model(x, labels)
-            return score
-
-    else:
-        raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
+def get_score_fn(sde: SDE, model):
+    """
+    Orig: https://github.com/yang-song/score_sde_pytorch/blob/cb1f359f4aadf0ff9a5e122fe8fffc9451fd6e44/models/utils.py#L129
+    """
+    def score_fn(batch, t):
+        std = sde.marginal_prob(torch.zeros_like(batch[0]), t)[1]
+        if isinstance(model.config.sampler_config, DDPMSamplingConfig):
+            t = t * (sde.N - 1)
+            # std = sde.sqrt_1m_alphas_cumprod.to(t.device)[t.long()]
+        score = model(batch, t)
+        score = -score / std[:, None, None, None]
+        return score
 
     return score_fn
 
