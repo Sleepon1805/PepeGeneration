@@ -99,14 +99,21 @@ def load_model_and_config(checkpoint: Path | str, device: str) -> (PepeGenerator
 
 def create_input_batch(condition, num_samples, config):
     if condition is None:
-        print('Got no condition. Taking input images and conditions from first val batch.')
-        dataset = PepeDataset(config.dataset_name, config.image_size, paths=Paths(), augments=None)
-        train_set, val_set = torch.utils.data.random_split(dataset, config.dataset_split,
-                                                           generator=torch.Generator().manual_seed(137))
-        loader = torch.utils.data.DataLoader(val_set, batch_size=num_samples, pin_memory=True,
-                                             num_workers=0)
-        batch = next(iter(loader))
-        return batch
+        try:
+            print('Got no condition. Taking input images and conditions from first val batch.')
+            dataset = PepeDataset(config.dataset_name, config.image_size, paths=Paths(), augments=None)
+            train_set, val_set = torch.utils.data.random_split(dataset, config.dataset_split,
+                                                               generator=torch.Generator().manual_seed(137))
+            loader = torch.utils.data.DataLoader(val_set, batch_size=num_samples, pin_memory=True,
+                                                 num_workers=0)
+            batch = next(iter(loader))
+            return batch
+        except AssertionError:
+            print('Simulating input batch and condition with zeros')
+            fake_image_batch = torch.zeros((num_samples, 3, config.image_size, config.image_size))
+            fake_cond_batch = torch.ones(num_samples, config.condition_size)
+            fake_batch = (fake_image_batch, fake_cond_batch)
+            return fake_batch
     else:
         print(f'Generating images for condition {condition}, input images are set to zeros.')
         encoded_cond = encode_condition(config.dataset_name, condition)
