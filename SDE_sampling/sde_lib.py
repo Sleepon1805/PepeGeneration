@@ -2,6 +2,7 @@
 import abc
 import torch
 import numpy as np
+from typing import Callable
 
 from config import PCSamplingConfig, ODESamplingConfig
 
@@ -9,7 +10,7 @@ from config import PCSamplingConfig, ODESamplingConfig
 class SDE(abc.ABC):
     """ SDE abstract class. Functions are designed for a mini-batch of inputs. """
 
-    def __init__(self, N):
+    def __init__(self, N, T, eps):
         """
         Construct an SDE.
 
@@ -18,25 +19,15 @@ class SDE(abc.ABC):
         """
         super().__init__()
         self.N = N
+        self.T = T
+        self.eps = eps
 
-    @property
     @abc.abstractmethod
-    def T(self):
-        """ End time of the SDE. """
-        pass
-
-    @property
-    @abc.abstractmethod
-    def eps(self):
-        """ sampling epsilon """
+    def get_sde(self, x: torch.Tensor, t):
         pass
 
     @abc.abstractmethod
-    def sde(self, batch, t):
-        pass
-
-    @abc.abstractmethod
-    def marginal_prob(self, x, t):
+    def marginal_prob(self, x: torch.Tensor, t):
         """ Parameters to determine the marginal distribution of the SDE, $p_t(x)$. """
         pass
 
@@ -46,7 +37,7 @@ class SDE(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def prior_logp(self, z):
+    def prior_logp(self, z: torch.Tensor):
         """
         Compute log-density of the prior distribution.
         Useful for computing the log-SDE_sampling via probability flow ODE.
@@ -58,7 +49,7 @@ class SDE(abc.ABC):
         """
         pass
 
-    def discretize(self, batch, t):
+    def discretize(self, x: torch.Tensor, t):
         """
         Discretize the SDE in the form: x_{i+1} = x_i + f_i(x_i) + G_i z_i.
         Useful for reverse diffusion sampling and probabiliy flow sampling.
@@ -71,51 +62,52 @@ class SDE(abc.ABC):
             f, G
         """
         dt = 1 / self.N
-        drift, diffusion = self.sde(batch, t)
+        drift, diffusion = self.get_sde(x, t)
         f = drift * dt
         G = diffusion * torch.sqrt(torch.tensor(dt, device=t.device))
         return f, G
 
-    def reverse(self, score_fn, probability_flow=False):
-        """
-        Create the reverse-time SDE/ODE.
 
-        Args:
-            score_fn: A time-dependent score-based model that takes x and t and returns the score.
-            probability_flow: If `True`, create the reverse-time ODE used for probability flow sampling.
-        """
-        N = self.N
-        T = self.T
-        sde_fn = self.sde
-        discretize_fn = self.discretize
+class ReverseSDE:
+    def __init__(self, sde: SDE, score_fn: Callable, probability_flow=False):
+        self.forward_sde = sde
+        self.score_fn = score_fn
+        self.probability_flow = probability_flow
 
-        # Build the class for reverse-time SDE.
-        class RSDE(self.__class__):
-            def __init__(self):
-                self.N = N
-                self.probability_flow = probability_flow
+        self.N = sde.N
+        self.T = sde.T
+        self.eps = sde.eps
 
-            @property
-            def T(self):
-                return T
+    @abc.abstractmethod
+    def get_sde(self, batch: tuple[torch.Tensor, ...], t):
+        """ Create the drift and diffusion functions for the reverse SDE/ODE. """
+        x = batch[0]
+        drift, diffusion = self.forward_sde.get_sde(x, t)
+        score = self.score_fn(batch, t)
+        drift = drift - diffusion[:, None, None, None] ** 2 * score * (0.5 if self.probability_flow else 1.)
+        # Set the diffusion function to zero for ODEs.
+        diffusion = 0. if self.probability_flow else diffusion
+        return drift, diffusion
 
-            def sde(self, batch, t):
-                """ Create the drift and diffusion functions for the reverse SDE/ODE. """
-                drift, diffusion = sde_fn(batch, t)
-                score = score_fn(batch, t)
-                drift = drift - diffusion[:, None, None, None] ** 2 * score * (0.5 if self.probability_flow else 1.)
-                # Set the diffusion function to zero for ODEs.
-                diffusion = 0. if self.probability_flow else diffusion
-                return drift, diffusion
+    @abc.abstractmethod
+    def marginal_prob(self, x: torch.Tensor, t):
+        return self.forward_sde.marginal_prob(x, t)
 
-            def discretize(self, batch, t):
-                """ Create discretized iteration rules for the reverse diffusion sampler. """
-                f, G = discretize_fn(batch, t)
-                rev_f = f - G[:, None, None, None] ** 2 * score_fn(batch, t) * (0.5 if self.probability_flow else 1.)
-                rev_G = torch.zeros_like(G) if self.probability_flow else G
-                return rev_f, rev_G
+    @abc.abstractmethod
+    def prior_sampling(self, shape):
+        return self.forward_sde.prior_sampling(shape)
 
-        return RSDE()
+    @abc.abstractmethod
+    def prior_logp(self, z: torch.Tensor):
+        return self.forward_sde.prior_logp(z)
+
+    def discretize(self, batch: tuple[torch.Tensor, ...], t):
+        """ Create discretized iteration rules for the reverse diffusion sampler. """
+        x = batch[0]
+        f, G = self.forward_sde.discretize(x, t)
+        rev_f = f - G[:, None, None, None] ** 2 * self.score_fn(batch, t) * (0.5 if self.probability_flow else 1.)
+        rev_G = torch.zeros_like(G) if self.probability_flow else G
+        return rev_f, rev_G
 
 
 class VPSDE(SDE):
@@ -128,26 +120,17 @@ class VPSDE(SDE):
             beta_max: value of beta(1)
             N: number of discretization steps
         """
-        super().__init__(N)
+        super().__init__(N, T=1, eps=1e-3)
         self.beta_0 = beta_min
         self.beta_1 = beta_max
-        self.N = N
+
         self.discrete_betas = torch.linspace(beta_min / N, beta_max / N, N)
         self.alphas = 1. - self.discrete_betas
         self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
         self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
         self.sqrt_1m_alphas_cumprod = torch.sqrt(1. - self.alphas_cumprod)
 
-    @property
-    def T(self):
-        return 1
-
-    @property
-    def eps(self):
-        return 1e-3
-
-    def sde(self, batch, t):
-        x = batch[0]
+    def get_sde(self, x, t):
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         drift = -0.5 * beta_t[:, None, None, None] * x
         diffusion = torch.sqrt(beta_t)
@@ -169,9 +152,8 @@ class VPSDE(SDE):
         logps = -N / 2. * np.log(2 * np.pi) - torch.sum(z ** 2, dim=(1, 2, 3)) / 2.
         return logps
 
-    def discretize(self, batch, t):
+    def discretize(self, x, t):
         """ DDPM discretization. """
-        x = batch[0]
         timestep = (t * (self.N - 1) / self.T).long()
         beta = self.discrete_betas.to(x.device)[timestep]
         alpha = self.alphas.to(x.device)[timestep]
@@ -191,21 +173,11 @@ class subVPSDE(SDE):
             beta_max: value of beta(1)
             N: number of discretization steps
         """
-        super().__init__(N)
+        super().__init__(N, T=1, eps=1e-3)
         self.beta_0 = beta_min
         self.beta_1 = beta_max
-        self.N = N
 
-    @property
-    def T(self):
-        return 1
-
-    @property
-    def eps(self):
-        return 1e-3
-
-    def sde(self, batch, t):
-        x = batch[0]
+    def get_sde(self, x, t):
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         drift = -0.5 * beta_t[:, None, None, None] * x
         discount = 1. - torch.exp(-2 * self.beta_0 * t - (self.beta_1 - self.beta_0) * t ** 2)
@@ -238,22 +210,12 @@ class VESDE(SDE):
             sigma_max: largest sigma.
             N: number of discretization steps
         """
-        super().__init__(N)
+        super().__init__(N, T=1, eps=1e-5)
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.discrete_sigmas = torch.exp(torch.linspace(np.log(self.sigma_min), np.log(self.sigma_max), N))
-        self.N = N
 
-    @property
-    def T(self):
-        return 1
-
-    @property
-    def eps(self):
-        return 1e-5
-
-    def sde(self, batch, t):
-        x = batch[0]
+    def get_sde(self, x, t):
         sigma = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
         drift = torch.zeros_like(x)
         diffusion = sigma * torch.sqrt(torch.tensor(2 * (np.log(self.sigma_max) - np.log(self.sigma_min)),
@@ -275,9 +237,8 @@ class VESDE(SDE):
         return -N / 2. * np.log(2 * np.pi * self.sigma_max ** 2) - torch.sum(z ** 2, dim=(1, 2, 3)) / (
                     2 * self.sigma_max ** 2)
 
-    def discretize(self, batch, t):
+    def discretize(self, x, t):
         """ SMLD(NCSN) discretization. """
-        x = batch[0]
         timestep = (t * (self.N - 1) / self.T).long()
         sigma = self.discrete_sigmas.to(t.device)[timestep]
         adjacent_sigma = torch.where(timestep == 0, torch.zeros_like(t),

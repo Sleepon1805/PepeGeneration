@@ -95,27 +95,32 @@ class DDPM_Sampler(Sampler):
         self.beta_max = config.beta_max
         self.diffusion_steps = config.diffusion_steps
 
-        self.beta = torch.linspace(self.beta_min, self.beta_max, self.diffusion_steps)
-        self.alpha = torch.cumprod(1 - self.beta, dim=0)
+        # notation as in ddpm paper
+        self.betas = torch.linspace(self.beta_min, self.beta_max, self.diffusion_steps)
+        self.alphas = 1 - self.betas
+        self.alphas_hat = torch.cumprod(self.alphas, dim=0)
 
     def init_timesteps(self):
-        return torch.arange(self.diffusion_steps - 1, 0, -1, device=self.device)
+        # all timesteps in backward process
+        return torch.arange(0, self.diffusion_steps, device=self.device).flip(dims=(0,))
 
     def sample_timesteps(self, n):
-        return torch.randint(low=1, high=self.diffusion_steps, size=(n,), device=self.device)
+        # sample n random timesteps for forward process
+        return torch.randint(low=0, high=self.diffusion_steps - 1, size=(n,), device=self.device)
 
     def prior_sampling(self, shape):
+        # initial noise (last timestep) that will be transformed into images
         return torch.randn(shape, device=self.device)
 
     def noise_images(self, images, t):
-        sqrt_alpha = torch.sqrt(self.alpha[t]).view(-1, 1, 1, 1)
-        sqrt_one_minus_alpha = torch.sqrt(1 - self.alpha[t]).view(-1, 1, 1, 1)
+        sqrt_alpha_hat = torch.sqrt(self.alphas_hat[t]).view(-1, 1, 1, 1)
+        sqrt_one_minus_alpha_hat = torch.sqrt(1 - self.alphas_hat[t]).view(-1, 1, 1, 1)
         noise = torch.randn_like(images, device=self.device)
-        noised_image = sqrt_alpha * images + sqrt_one_minus_alpha * noise
+        noised_image = sqrt_alpha_hat * images + sqrt_one_minus_alpha_hat * noise
         return noised_image, noise
 
     def noise_images_one_step(self, prev_step_images, t):
-        beta = self.beta[t].view(-1, 1, 1, 1)
+        beta = self.betas[t].view(-1, 1, 1, 1)
         noise = torch.randn_like(prev_step_images, device=self.device)
         noised_image = torch.sqrt(1 - beta) * prev_step_images + torch.sqrt(beta) * noise
         return noised_image, noise
@@ -124,16 +129,17 @@ class DDPM_Sampler(Sampler):
         images = batch[0]
         predicted_noise = model(batch, t.repeat(images.shape[0]))
 
-        if t > 1:
+        if t > 0:
             noise = torch.randn_like(images)
         else:
             noise = torch.zeros_like(images)
 
-        alpha = self.alpha[t].view(-1, 1, 1, 1)
-        beta = self.beta[t].view(-1, 1, 1, 1)
+        beta = self.betas[t].view(-1, 1, 1, 1)
+        alpha = self.alphas[t].view(-1, 1, 1, 1)
+        alpha_hat = self.alphas_hat[t].view(-1, 1, 1, 1)
 
-        denoised_image = 1 / torch.sqrt(1 - beta) * (images - (beta / (torch.sqrt(1 - alpha)))
-                                                     * predicted_noise) + torch.sqrt(beta) * noise
+        denoised_image = ((images - (beta / (torch.sqrt(1 - alpha_hat))) * predicted_noise) / torch.sqrt(alpha)
+                          + torch.sqrt(beta) * noise)
         return denoised_image
 
     def visualize_generation_process(self, model, batch, progress: Progress = None, seed=42):
@@ -241,7 +247,8 @@ class ODE_Sampler(Sampler):
         self.denoise = config.denoise
 
     def init_timesteps(self):
-        raise NotImplementedError
+        # only first and last timesteps are needed for ODE Solver
+        return self.sde.T, self.sde.eps
 
     def sample_timesteps(self, n):
         raise NotImplementedError
@@ -270,7 +277,7 @@ class ODE_Sampler(Sampler):
         # Black-box ODE solver for the probability flow ODE
         print('Generating samples with ODE Solver. It will take some time.')
         ttime = time()
-        solution = integrate.solve_ivp(ode_func, (self.sde.T, self.sde.eps), x,
+        solution = integrate.solve_ivp(ode_func, self.init_timesteps(), x,
                                        rtol=self.rtol, atol=self.atol, method=self.method)
         x = torch.tensor(solution.y[:, -1]).reshape(shape).to(self.device).type(torch.float32)
         print(f'Generating samples with ODE Solver took {time() - ttime} seconds.')
@@ -285,7 +292,7 @@ class ODE_Sampler(Sampler):
             x = torch.from_numpy(x.reshape(shape)).to(self.device).type(torch.float32)
             vec_t = torch.ones(shape[0], device=self.device) * t
             rsde = self.sde.reverse(score_fn, probability_flow=True)
-            drift = rsde.sde((x, ), vec_t)[0]
+            drift = rsde.get_sde((x,), vec_t)[0]
             return drift.detach().cpu().numpy().reshape((-1,))
         return ode_func
 
