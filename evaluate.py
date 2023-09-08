@@ -14,7 +14,7 @@ from config import Paths, Config, DDPMSamplingConfig, PCSamplingConfig, ODESampl
 
 
 def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 4), calculate_metrics=False,
-              save_images=True, on_gpu=True):
+              save_images=True, on_gpu=True, seed=42):
     folder_to_save = checkpoint.parents[1].joinpath('results/')
     if not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)
@@ -59,7 +59,7 @@ def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 
     # generate images
     with progress:
         # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
-        gen_samples = sampler.generate_samples(model, fake_batch, progress=progress)
+        gen_samples = sampler.generate_samples(model, fake_batch, progress=progress, seed=seed)
     gen_images = sampler.generated_samples_to_images(gen_samples, grid_shape)
 
     # save distributions of generated samples
@@ -165,4 +165,5 @@ if __name__ == '__main__':
         calculate_metrics=False,
         save_images=False,
         on_gpu=True,
+        seed=137,
     )

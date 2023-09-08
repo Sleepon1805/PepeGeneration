@@ -57,7 +57,7 @@ if __name__ == '__main__':
     callbacks = [
         RichProgressBar(leave=True),  # progression bar
         EarlyStopping(monitor='fid_metric', min_delta=0.0, patience=5, mode='min'),  # early stopping
-        ModelCheckpoint(save_top_k=3, monitor='fid_metric', save_last=True,
+        ModelCheckpoint(save_top_k=3, monitor='val_loss', save_last=True,
                         filename='{epoch:02d}-{fid_metric:.2f}-{val_loss:.4f}'),  # checkpointing
         ModelSummary(max_depth=2),  # deeper model summary
         LearningRateMonitor(logging_interval='epoch'),  # LR in logger

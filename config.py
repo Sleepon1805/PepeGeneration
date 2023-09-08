@@ -100,7 +100,7 @@ class Config:
     dropout: float = 0.3
     use_second_attention: bool = True
 
-    sampler_config = DDPMSamplingConfig()  # one of DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
+    sampler_config = PCSamplingConfig()  # one of DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
 
 
 def save_config(config: Config, save_folder: str | Path):

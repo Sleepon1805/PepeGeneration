@@ -68,17 +68,13 @@ class SDE(abc.ABC):
         return f, G
 
 
-class ReverseSDE:
+class ReverseSDE(SDE):
     def __init__(self, sde: SDE, score_fn: Callable, probability_flow=False):
+        super().__init__(sde.N, sde.T, sde.eps)
         self.forward_sde = sde
         self.score_fn = score_fn
         self.probability_flow = probability_flow
 
-        self.N = sde.N
-        self.T = sde.T
-        self.eps = sde.eps
-
-    @abc.abstractmethod
     def get_sde(self, batch: tuple[torch.Tensor, ...], t):
         """ Create the drift and diffusion functions for the reverse SDE/ODE. """
         x = batch[0]
@@ -89,15 +85,12 @@ class ReverseSDE:
         diffusion *= (1 - self.probability_flow)
         return drift, diffusion
 
-    @abc.abstractmethod
     def marginal_prob(self, x: torch.Tensor, t):
         return self.forward_sde.marginal_prob(x, t)
 
-    @abc.abstractmethod
     def prior_sampling(self, shape):
         return self.forward_sde.prior_sampling(shape)
 
-    @abc.abstractmethod
     def prior_logp(self, z: torch.Tensor):
         return self.forward_sde.prior_logp(z)
 
@@ -143,7 +136,6 @@ class VPSDE(SDE):
         return mean, std
 
     def prior_sampling(self, shape):
-        torch.manual_seed(137)
         return torch.randn(*shape)
 
     def prior_logp(self, z):
@@ -177,6 +169,12 @@ class subVPSDE(SDE):
         self.beta_0 = beta_min
         self.beta_1 = beta_max
 
+        self.discrete_betas = torch.linspace(beta_min / N, beta_max / N, N)
+        self.alphas = 1. - self.discrete_betas
+        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
+        self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
+        self.sqrt_1m_alphas_cumprod = torch.sqrt(1. - self.alphas_cumprod)
+
     def get_sde(self, x, t):
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         drift = -0.5 * beta_t[:, None, None, None] * x
@@ -191,7 +189,6 @@ class subVPSDE(SDE):
         return mean, std
 
     def prior_sampling(self, shape):
-        torch.manual_seed(137)
         return torch.randn(*shape)
 
     def prior_logp(self, z):
@@ -228,7 +225,6 @@ class VESDE(SDE):
         return mean, std
 
     def prior_sampling(self, shape):
-        torch.manual_seed(137)
         return torch.randn(*shape) * self.sigma_max
 
     def prior_logp(self, z):

@@ -15,6 +15,8 @@ TODOs:
  - (?) use flash attention (https://github.com/Dao-AILab/flash-attention),
  - visualise influence of condition on celeba generation,
  - implement conditional SDE Sampling,
+ - implement generalized SDE Sampling,
+ - try to use direct solution of SDE (i.e. Ornstein-Uhlenbeck)
 
 Last results:
 
