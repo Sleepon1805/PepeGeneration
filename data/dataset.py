@@ -73,7 +73,7 @@ class PepeDataset(Dataset):
 
 if __name__ == '__main__':
     cfg = Config()
-    dataset = PepeDataset(dataset_name='celeba', image_size=cfg.image_size, paths=Paths())
+    dataset = PepeDataset(dataset_name=cfg.dataset_name, image_size=cfg.image_size, paths=Paths())
 
     one_item = dataset[137]
     dataset.show_item(one_item)

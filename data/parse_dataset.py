@@ -24,10 +24,14 @@ class DataParser:
             source_data_path = paths.celeba_data_path
         elif self.dataset_name == 'pepe':
             source_data_path = paths.pepe_data_path
+        elif self.dataset_name == 'twitch_emotes':
+            source_data_path = paths.twitch_emotes_data_path
             if not os.path.exists(source_data_path):
-                collect_twitch_emotes(source_data_path)
+                # collect_twitch_emotes(source_data_path)
+                raise FileNotFoundError(f'Path to source images {source_data_path} does not exist! '
+                                        'You can collect twitch emotes with twitch_emotes_collector.py.')
         else:
-            raise ValueError(f"dataset_name must be 'pepe' or 'celeba', got {self.dataset_name}")
+            raise ValueError(f"dataset_name must be 'pepe', 'celeba' or 'twitch_emotes', got {self.dataset_name}")
         assert os.path.exists(source_data_path), \
             f'Given path for source images {source_data_path} does not exist! Change it in config.py.'
 
@@ -57,13 +61,14 @@ class DataParser:
         self.db.write_lmdb_metadata(len(os.listdir(self.source_data_path)))
 
     def _parse_condition(self, filename: str):
-        if self.dataset_name == 'pepe':
+        if self.dataset_name in ('pepe', 'twitch_emotes'):
             if filename.endswith('.png'):
                 filename = filename[:-4]
             name = ''.join(i.lower() for i in filename if i.isalpha())  # take only letters in lower case
-            one_hot_cond = encode_condition('pepe', name)
+            one_hot_cond = encode_condition(self.dataset_name, name)
             return one_hot_cond
         elif self.dataset_name == 'celeba':
+            # TODO
             if not hasattr(self, 'attributes_df'):
                 csv_path = Path(self.source_data_path).parents[1].joinpath('list_attr_celeba.csv')
                 self.attributes_df = pd.read_csv(csv_path)
@@ -77,6 +82,7 @@ if __name__ == '__main__':
     dataset_names = [
         'pepe',
         'celeba',
+        'twitch_emotes',
     ]
     image_sizes = [
         64,

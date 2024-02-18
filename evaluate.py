@@ -49,6 +49,7 @@ def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 
     else:
         raise ValueError
     sampler.to(device)
+    model.sampler = sampler
 
     # get fake batch with zero'ed images and encoded condition
     fake_batch = create_input_batch(condition, grid_shape[0] * grid_shape[1], config)
@@ -151,7 +152,6 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 
 if __name__ == '__main__':
-    dataset_name = 'celeba'
     version = 13
     ckpt = Path(f'./lightning_logs/celeba/version_{version}/checkpoints/last.ckpt')
 

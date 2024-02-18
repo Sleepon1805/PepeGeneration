@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from typing import List
+from typing import List, Literal
 
 """ Funcs to encode-decode conditions """
 
@@ -60,12 +60,13 @@ def encode_condition(dataset_name: str, condition: List[str] | str) -> np.ndarra
                 decoded_cond[..., CELEBA_CONDITION_FEATURES[feature]] = 1
             else:
                 raise ValueError(f'Given feature {feature} is not a celeba feature.')
-    elif dataset_name == 'pepe':
+    elif dataset_name in ('pepe', 'twitch_emotes'):
         assert isinstance(condition, str)
         enum_letter = (lambda s: ord(s) - 97)  # enumerate lower case letters from 0 to 25
-        decoded_cond = torch.zeros((26, CONDITION_SIZE))  # set length to 40
+        decoded_cond = np.zeros((26, CONDITION_SIZE))  # set length to 40
         for i, letter in enumerate(condition):
-            decoded_cond[enum_letter(letter), i] = 1
+            if i < CONDITION_SIZE:
+                decoded_cond[enum_letter(letter), i] = 1
     else:
         raise ValueError
     return decoded_cond
@@ -76,15 +77,20 @@ def decode_condition(dataset_name: str, encoded_cond: torch.Tensor | np.ndarray)
     if isinstance(encoded_cond, np.ndarray):
         encoded_cond = torch.from_numpy(encoded_cond)
 
-    # must be a condition for a single sample
-    assert len(encoded_cond.shape) <= 1 + (dataset_name == 'pepe')
-
     if dataset_name == 'celeba':
+        # must be a condition for a single sample
+        assert len(encoded_cond.shape) == 1
         feature_indices = torch.where(encoded_cond == 1)[0]
         features = [feature for feature, index in CELEBA_CONDITION_FEATURES.items() if index in feature_indices]
         decoded_conditions = features
-    elif dataset_name == 'pepe':
-        raise NotImplementedError   # TODO
+    elif dataset_name in ('pepe', 'twitch_emotes'):
+        assert len(encoded_cond.shape) == 2
+        decoded_conditions = ''
+        for i in range(encoded_cond.shape[1]):
+            letter_num = torch.where(encoded_cond[:, i] == 1)[0]
+            if len(letter_num) == 1:
+                letter = chr(letter_num + 97)
+                decoded_conditions += letter
     else:
         raise ValueError
     return decoded_conditions

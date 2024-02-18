@@ -1,7 +1,7 @@
 import os
 import git
 import pickle
-from typing import Tuple
+from typing import Tuple, Literal
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -19,6 +19,7 @@ def curr_git_hash():
 class Paths:
     pepe_data_path: str = '/home/sleepon/data/TwitchPepeDataset/'
     celeba_data_path: str = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
+    twitch_emotes_data_path: str = '/home/sleepon/data/AllFFZEmotes/'
     parsed_datasets: str = os.path.dirname(__file__) + '/data/parsed_data/'
 
 
@@ -35,16 +36,16 @@ class DDPMSamplingConfig:
 class PCSamplingConfig:
     """ Predictor-Corrector Sampler """
     # sde params
-    sde_name: str = 'VPSDE'  # one of VPSDE, subVPSDE, VESDE
+    sde_name: Literal['VPSDE', 'subVPSDE', 'VESDE'] = 'VESDE'
     num_scales: int = 1000  # number of discretization timesteps
     beta_min: float = 0.1  # VPSDE, subVPSDE param
     beta_max: float = 20.  # VPSDE, subVPSDE param
     sigma_min: float = 0.01  # VESDE param
     sigma_max: float = 50.  # VESDE param
     # predictor params
-    predictor_name: str = 'euler_maruyama'  # none, ancestral_sampling, reverse_diffusion, euler_maruyama
+    predictor_name: Literal['none', 'ancestral_sampling', 'reverse_diffusion', 'euler_maruyama'] = 'euler_maruyama'
     # corrector params
-    corrector_name: str = 'langevin'  # none, langevin, ald
+    corrector_name: Literal['none', 'langevin', 'ald'] = 'langevin'
     snr: float = 0.01  # signal-to-noise ratio
     num_corrector_steps: int = 1
     # sampler params
@@ -56,7 +57,7 @@ class PCSamplingConfig:
 class ODESamplingConfig:
     """ ODE Solver """
     # sde params
-    sde_name: str = 'VPSDE'  # VPSDE, subVPSDE, VESDE
+    sde_name: Literal['VPSDE', 'subVPSDE', 'VESDE'] = 'VESDE'
     num_scales: int = 1000  # number of discretization timesteps
     beta_min: float = 0.1  # VPSDE, subVPSDE param
     beta_max: float = 20.  # VPSDE, subVPSDE param
@@ -86,7 +87,7 @@ class Config:
     dataset_split: Tuple[float, float] = (0.8, 0.2)
 
     # pretrained backbone and current dataset
-    dataset_name: str = 'celeba'
+    dataset_name: Literal['celeba', 'pepe', 'twitch_emotes'] = 'twitch_emotes'
     use_condition: bool = False
     condition_size: int = CONDITION_SIZE
     pretrained_ckpt: str = None
@@ -100,7 +101,7 @@ class Config:
     dropout: float = 0.3
     use_second_attention: bool = True
 
-    sampler_config = PCSamplingConfig()  # one of DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
+    sampler_config = DDPMSamplingConfig()  # one of DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
 
 
 def save_config(config: Config, save_folder: str | Path):

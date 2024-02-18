@@ -4,6 +4,8 @@ from PIL import Image
 from io import BytesIO
 from tqdm import tqdm
 
+from config import Paths
+
 
 def collect_twitch_emotes(data_path):
     """
@@ -77,7 +79,7 @@ def check_emoticon(emoticon: dict):
 
 
 if __name__ == '__main__':
-    path = '/home/sleepon/data/AllFFZEmotes/'
+    path = Paths().twitch_emotes_data_path  # '/home/sleepon/data/AllFFZEmotes/'
     collect_twitch_emotes(path)
 
     # import shutil
