@@ -7,6 +7,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
+from typing import Tuple, List
 
 from config import Paths, Config
 from data.condition_utils import decode_condition
@@ -58,7 +59,7 @@ class PepeDataset(Dataset):
 
         return image, condition
 
-    def show_item(self, item):
+    def show_item(self, item, axis: plt.Axes = None):
         sample, condition = item
 
         image = sample.numpy().transpose((1, 2, 0))
@@ -66,9 +67,15 @@ class PepeDataset(Dataset):
 
         features = decode_condition(self.dataset_name, condition)
 
-        plt.imshow(image)
-        plt.title(features)
-        plt.show()
+        if axis:
+            axis.imshow(image)
+            axis.set_title(features)
+            axis.axis('off')
+            return axis
+        else:
+            plt.imshow(image)
+            plt.title(features)
+            plt.show()
 
 
 if __name__ == '__main__':

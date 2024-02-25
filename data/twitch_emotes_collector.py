@@ -1,4 +1,7 @@
 import os
+import re
+import shutil
+
 import requests
 from PIL import Image
 from io import BytesIO
@@ -55,6 +58,14 @@ def collect_twitch_emotes(data_path):
                     print(e)
 
 
+def filter_pepe_emotes(pepe_data_path, twitch_emotes_data_path):
+    os.makedirs(pepe_data_path, exist_ok=True)
+    for filename in tqdm(os.listdir(twitch_emotes_data_path)):
+        pepe_name = re.search('pepe|pepo|peepo|monka', filename, re.IGNORECASE)
+        if pepe_name:
+            shutil.copy2(twitch_emotes_data_path + filename, pepe_data_path + filename)
+
+
 def check_emoticon(emoticon: dict):
     valid_emote = False
 
@@ -79,11 +90,8 @@ def check_emoticon(emoticon: dict):
 
 
 if __name__ == '__main__':
-    path = Paths().twitch_emotes_data_path  # '/home/sleepon/data/AllFFZEmotes/'
-    collect_twitch_emotes(path)
+    twitch_emotes_path = Paths().twitch_emotes_data_path
+    # collect_twitch_emotes(twitch_emotes_path)
 
-    # import shutil
-    # old_path = '/home/sleepon/data/TwitchPepeDatasetv0/'
-    # for filename in os.listdir(old_path):
-    #     if check_emote_name(filename):
-    #         shutil.copy2(old_path + filename, path + filename)
+    pepe_path = Paths().pepe_data_path
+    filter_pepe_emotes(pepe_path, twitch_emotes_path)
