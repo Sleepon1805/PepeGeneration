@@ -80,11 +80,12 @@ class Config:
     batch_size: int = 16
     precision: str = '16-mixed'
     image_size: int = 128  # size of image NxN
-    lr: float = 1e-4  # learning rate on training start
-    scheduler: str = 'no'
+    lr: float = 1e-3  # learning rate on training start
+    scheduler: str = 'multisteplr'
     gradient_clip_algorithm: str = "norm"
     gradient_clip_val: float = 0.5
     dataset_split: Tuple[float, float] = (0.8, 0.2)
+    calculate_fid: bool = False
 
     # pretrained backbone and current dataset
     dataset_name: Literal['celeba', 'pepe', 'twitch_emotes'] = 'pepe'

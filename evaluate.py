@@ -16,7 +16,7 @@ from config import Paths, Config, DDPMSamplingConfig, PCSamplingConfig, ODESampl
 def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 4), calculate_metrics=False,
               save_images=True, on_gpu=True, seed=42):
     folder_to_save = checkpoint.parents[1].joinpath('results/')
-    if not os.path.exists(folder_to_save):
+    if save_images and not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)
 
     device = 'cuda' if (on_gpu and torch.cuda.is_available()) else 'cpu'
@@ -152,16 +152,17 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 
 if __name__ == '__main__':
-    version = 13
-    ckpt = Path(f'./lightning_logs/celeba/version_{version}/checkpoints/last.ckpt')
+    version = 4
+    dataset = 'pepe'
+    ckpt = Path(f'./lightning_logs/{dataset}/version_{version}/checkpoints/last.ckpt')
 
-    sampling_cfg = None  # None, DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
+    sampling_cfg = PCSamplingConfig()  # None, DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
 
     inference(
         ckpt,
         sampling_config=sampling_cfg,
         condition=None,
-        grid_shape=(3, 3),
+        grid_shape=(2, 2),
         calculate_metrics=False,
         save_images=False,
         on_gpu=True,
