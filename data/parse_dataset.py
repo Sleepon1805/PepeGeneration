@@ -47,7 +47,17 @@ class DataParser:
         for sample_num, filename in enumerate(tqdm(os.listdir(self.source_data_path),
                                                    desc=f'Parsing {self.image_size} {self.dataset_name} images')):
             # read image as ndarray
-            image = cv2.imread(self.source_data_path + filename)
+            image = cv2.imread(self.source_data_path + filename, cv2.IMREAD_UNCHANGED)
+
+            if len(image.shape) != 3:
+                image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+            if image.shape[2] == 4:
+                # make mask of where the transparent bits are
+                transparent_mask = image[:, :, 3] == 0
+                # replace areas of transparency with white and not transparent
+                image[transparent_mask] = [255, 255, 255, 255]
+
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image = cv2.resize(image, dsize=self.image_size, interpolation=cv2.INTER_CUBIC)
 
