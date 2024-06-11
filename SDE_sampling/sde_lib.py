@@ -27,8 +27,9 @@ class SDE(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def marginal_prob(self, x: torch.Tensor, t):
+    def marginal_prob(self, x_0: torch.Tensor, t):
         """ Parameters to determine the marginal distribution of the SDE, $p_t(x)$. """
+        # TODO: use Eq. (5.50), (5.51) in Särkkä & Solin (2019): Applied Stochastic Differential Equations
         pass
 
     @abc.abstractmethod
