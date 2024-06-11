@@ -3,14 +3,12 @@ import torch
 import torchmetrics
 from pathlib import Path
 import matplotlib.pyplot as plt
-from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn, \
-    MofNCompleteColumn
 
 from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
 from model.samplers import DDPM_Sampler, PC_Sampler, ODE_Sampler
-from config import Paths, Config, DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig, load_config
+from config import Paths, Config, DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig, load_config, progress_bar
 
 
 def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 4), calculate_metrics=False,
@@ -20,16 +18,6 @@ def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 
         os.makedirs(folder_to_save)
 
     device = 'cuda' if (on_gpu and torch.cuda.is_available()) else 'cpu'
-
-    # rich progress bar
-    progress = Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TimeElapsedColumn(),
-        TimeRemainingColumn()
-    )
 
     model, config = load_model_and_config(checkpoint, device)
 
@@ -57,10 +45,8 @@ def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 
     # with progress:
     #     model.sampler.visualize_generation_process(model, fake_batch, progress)
 
-    # generate images
-    with progress:
-        # [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
-        gen_samples = sampler.generate_samples(model, fake_batch, progress=progress, seed=seed)
+    # generate images: [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
+    gen_samples = sampler.generate_samples(model, fake_batch, seed=seed)
     gen_images = sampler.generated_samples_to_images(gen_samples, grid_shape)
 
     # save distributions of generated samples
@@ -82,19 +68,18 @@ def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 
     plt.show()
 
     if calculate_metrics:
-        with progress:
-            calculate_fid_loss(gen_samples, config, device, progress=progress)
+        calculate_fid_loss(gen_samples, config, device)
         inception_score = model.calculate_inception_score(gen_samples=gen_samples)
         print(f'Inception score: {inception_score}')
 
 
 def load_model_and_config(checkpoint: Path | str, device: str) -> (PepeGenerator, Config):
-    print(f'Loaded model from {checkpoint}')
     config = load_config(checkpoint, path_to_checkpoint=True)
 
     model = PepeGenerator.load_from_checkpoint(checkpoint, config=config, strict=False)
     model.eval(), model.freeze(), model.to(device)
 
+    print(f'Loaded model from {checkpoint}')
     return model, config
 
 
@@ -127,7 +112,7 @@ def create_input_batch(condition, num_samples, config):
         return fake_batch
 
 
-def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progress):
+def calculate_fid_loss(gen_samples, config: Config, device: str):
     fid_metric = torchmetrics.image.fid.FrechetInceptionDistance(feature=192, normalize=True).to(device)
 
     # real images
@@ -136,12 +121,9 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
                                                        generator=torch.Generator().manual_seed(137))
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=gen_samples.shape[0], pin_memory=True,
                                              num_workers=0)
-    with progress:
-        progress_bar_task = progress.add_task("[white]Adding real images to FID", total=len(val_loader))
-        for samples, cond in val_loader:
-            progress.update(progress_bar_task, advance=1)
-            images = (samples.to(device) + 1) / 2
-            fid_metric.update(images, real=True)
+    for samples, cond in progress_bar(val_loader, desc="Adding real images to FID"):
+        images = (samples.to(device) + 1) / 2
+        fid_metric.update(images, real=True)
 
     # generated images
     fid_metric.update((gen_samples.clamp(-1, 1) + 1) / 2, real=False)
@@ -152,18 +134,18 @@ def calculate_fid_loss(gen_samples, config: Config, device: str, progress: Progr
 
 
 if __name__ == '__main__':
-    version = 4
-    dataset = 'pepe'
-    ckpt = Path(f'./lightning_logs/{dataset}/version_{version}/checkpoints/last.ckpt')
+    version = 11
+    dataset_name = 'celeba'
+    ckpt = Path(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/last.ckpt')
 
-    sampling_cfg = PCSamplingConfig()  # None, DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
+    sampling_cfg = None  # None, DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
 
     inference(
         ckpt,
         sampling_config=sampling_cfg,
         condition=None,
         grid_shape=(2, 2),
-        calculate_metrics=False,
+        calculate_metrics=True,
         save_images=False,
         on_gpu=True,
         seed=137,

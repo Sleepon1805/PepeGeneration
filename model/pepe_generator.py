@@ -32,12 +32,11 @@ class PepeGenerator(LightningModule):
             print('No scheduler')
             return optimizer
         elif self.config.scheduler.lower() == 'multisteplr':
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, gamma=0.1, milestones=(5, 10),
-                                                             verbose=False)
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, gamma=0.1, milestones=(5, 10))
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler}}
         elif self.config.scheduler.lower() == 'reducelronplateau':
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=4, min_lr=1e-6,
-                                                                   mode='min', verbose=False)
+                                                                   mode='min')
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
         else:
             raise NotImplemented(self.config.scheduler)
@@ -45,6 +44,7 @@ class PepeGenerator(LightningModule):
     def to(self, device):
         super().to(device)
         self.sampler.to(device)
+        return self
 
     def training_step(self, batch, batch_idx):
         loss = self._calculate_loss(batch)
@@ -97,11 +97,10 @@ class PepeGenerator(LightningModule):
         """
 
         if not self.config.calculate_fid:
-            num_images = max(batch.shape[0], grid_size[0] * grid_size[1])
-            batch = batch[:num_images]
+            num_images = min(batch[0].shape[0], grid_size[0] * grid_size[1])
+            batch[0] = batch[0][:num_images]
 
-        with self.trainer.progress_bar_callback.progress as progress:
-            gen_samples = self.sampler.generate_samples(self, batch, progress)
+        gen_samples = self.sampler.generate_samples(self, batch)
 
         # images
         images = self.sampler.generated_samples_to_images(gen_samples, grid_size)

@@ -8,8 +8,8 @@ from rich.progress import Progress
 from abc import ABC, abstractmethod
 from lightning import LightningModule
 
-from config import DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig
-from SDE_sampling.sde_lib import get_sde, SDE, ReverseSDE, VPSDE, subVPSDE, VESDE
+from config import DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig, progress_bar
+from SDE_sampling.sde_lib import get_sde, SDE, ReverseSDE
 from SDE_sampling.predictors_correctors import get_predictor, get_corrector, Predictor, Corrector
 
 
@@ -44,7 +44,7 @@ class Sampler(ABC):
     def denoise_step(self, model: LightningModule, batch, t):
         pass
 
-    def generate_samples(self, model, batch, progress: Progress = None, seed=42) -> torch.Tensor:
+    def generate_samples(self, model, batch, seed=42) -> torch.Tensor:
         torch.manual_seed(seed)
         images_batch, *labels = batch
 
@@ -56,17 +56,8 @@ class Sampler(ABC):
         x = self.prior_sampling(images_batch.shape)
         timesteps = self.init_timesteps()
 
-        if progress is not None:
-            progress.generating_progress_bar_id = progress.add_task(
-                f"[white]Generating {images_batch.shape[0]} images",
-                total=len(timesteps)
-            )
-
         # Generate samples from denoising process
-        for t in timesteps:
-            if progress is not None:
-                progress.update(progress.generating_progress_bar_id, advance=1, visible=True)
-                progress.refresh()
+        for t in progress_bar(timesteps, desc=f"Generating {images_batch.shape[0]} images"):
             batch = (x, *labels)
             x = self.denoise_step(model, batch, t)
         return x

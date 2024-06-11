@@ -2,7 +2,12 @@ import os
 import sys
 import torch
 import lightning
-from lightning.pytorch.callbacks import ModelCheckpoint, ModelSummary, LearningRateMonitor, RichProgressBar
+from lightning.pytorch.callbacks import (
+    ModelCheckpoint,
+    LearningRateMonitor,
+    ModelSummary,
+    RichModelSummary
+)
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.profilers import AdvancedProfiler
 from lightning.pytorch.loggers import TensorBoardLogger
@@ -11,6 +16,7 @@ from data.dataset import PepeDataset
 from data.parse_dataset import DataParser
 from model.pepe_generator import PepeGenerator
 from config import Paths, Config
+from progress_bar import progress_bar, USE_RICH_PROGRESS_BAR
 
 if __name__ == '__main__':
     # don't forget to override environment variable HSA_OVERRIDE_GFX_VERSION=10.3.0 (for radeon rx 6700xt)
@@ -55,11 +61,11 @@ if __name__ == '__main__':
 
     # train the model
     callbacks = [
-        RichProgressBar(leave=True),  # progression bar
+        progress_bar,  # progression bar
         EarlyStopping(monitor='val_loss', min_delta=0.0, patience=5, mode='min'),  # early stopping
         ModelCheckpoint(save_top_k=3, monitor='val_loss', save_last=True,
                         filename='{epoch:02d}-{fid_metric:.2f}-{val_loss:.4f}'),  # checkpointing
-        ModelSummary(max_depth=2),  # deeper model summary
+        RichModelSummary(max_depth=2) if USE_RICH_PROGRESS_BAR else ModelSummary(max_depth=2),  # deeper model summary
         LearningRateMonitor(logging_interval='epoch'),  # LR in logger
     ]
 
@@ -68,10 +74,12 @@ if __name__ == '__main__':
         accelerator='auto',
         callbacks=callbacks,
         log_every_n_steps=1,
-        # profiler=AdvancedProfiler(filename='profiler'),
         logger=logger,
-        # num_sanity_val_steps=0,
         precision=cfg.precision,
+        # profiler=AdvancedProfiler(filename='profiler'),
+        # num_sanity_val_steps=0,
+        # limit_train_batches=20,
+        # limit_val_batches=20,
     )
 
     trainer.fit(

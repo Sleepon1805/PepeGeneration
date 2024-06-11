@@ -6,6 +6,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 from data.condition_utils import CONDITION_SIZE
+from progress_bar import progress_bar
 
 HIGHRES_IMAGE_SIZE_MULT = 4
 
@@ -36,7 +37,7 @@ class DDPMSamplingConfig:
 class PCSamplingConfig:
     """ Predictor-Corrector Sampler """
     # sde params
-    sde_name: Literal['VPSDE', 'subVPSDE', 'VESDE'] = 'VESDE'
+    sde_name: Literal['VPSDE', 'subVPSDE', 'VESDE'] = 'VPSDE'
     num_scales: int = 1000  # number of discretization timesteps
     beta_min: float = 0.1  # VPSDE, subVPSDE param
     beta_max: float = 20.  # VPSDE, subVPSDE param
@@ -45,7 +46,7 @@ class PCSamplingConfig:
     # predictor params
     predictor_name: Literal['none', 'ancestral_sampling', 'reverse_diffusion', 'euler_maruyama'] = 'euler_maruyama'
     # corrector params
-    corrector_name: Literal['none', 'langevin', 'ald'] = 'langevin'
+    corrector_name: Literal['none', 'langevin', 'ald'] = 'none'
     snr: float = 0.01  # signal-to-noise ratio
     num_corrector_steps: int = 1
     # sampler params
@@ -77,9 +78,9 @@ class Config:
     git_hash: str = curr_git_hash()
 
     # training params
-    batch_size: int = 16
-    precision: str = '16-mixed'
-    image_size: int = 128  # size of image NxN
+    batch_size: int = 32
+    precision: str = 32
+    image_size: int = 64  # size of image NxN
     lr: float = 1e-3  # learning rate on training start
     scheduler: str = 'multisteplr'
     gradient_clip_algorithm: str = "norm"
@@ -88,7 +89,7 @@ class Config:
     calculate_fid: bool = False
 
     # pretrained backbone and current dataset
-    dataset_name: Literal['celeba', 'pepe', 'twitch_emotes'] = 'pepe'
+    dataset_name: Literal['celeba', 'pepe', 'twitch_emotes'] = 'celeba'
     use_condition: bool = False
     condition_size: int = CONDITION_SIZE
     pretrained_ckpt: str = None
