@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 from data.condition_utils import CONDITION_SIZE
 from progress_bar import progress_bar
+from SDE_sampling.sde_lib import SDEName
+from SDE_sampling.predictors_correctors import PredictorName, CorrectorName
 
 HIGHRES_IMAGE_SIZE_MULT = 4
 
@@ -22,54 +24,6 @@ class Paths:
     celeba_data_path: str = '/home/sleepon/data/CelebFaces/img_align_celeba/img_align_celeba/'
     twitch_emotes_data_path: str = '/home/sleepon/data/AllFFZEmotes/'
     parsed_datasets: str = os.path.dirname(__file__) + '/data/parsed_data/'
-
-
-@dataclass
-class DDPMSamplingConfig:
-    """ default DDPM sampler """
-    # DDPM params
-    beta_min: float = 0.0001
-    beta_max: float = 0.02
-    diffusion_steps: int = 1000
-
-
-@dataclass
-class PCSamplingConfig:
-    """ Predictor-Corrector Sampler """
-    # sde params
-    sde_name: Literal['VPSDE', 'subVPSDE', 'VESDE'] = 'VPSDE'
-    num_scales: int = 1000  # number of discretization timesteps
-    beta_min: float = 0.1  # VPSDE, subVPSDE param
-    beta_max: float = 20.  # VPSDE, subVPSDE param
-    sigma_min: float = 0.01  # VESDE param
-    sigma_max: float = 50.  # VESDE param
-    # predictor params
-    predictor_name: Literal['none', 'ancestral_sampling', 'reverse_diffusion', 'euler_maruyama'] = 'euler_maruyama'
-    # corrector params
-    corrector_name: Literal['none', 'langevin', 'ald'] = 'none'
-    snr: float = 0.01  # signal-to-noise ratio
-    num_corrector_steps: int = 1
-    # sampler params
-    probability_flow: bool = False
-    denoise: bool = False
-
-
-@dataclass
-class ODESamplingConfig:
-    """ ODE Solver """
-    # sde params
-    sde_name: Literal['VPSDE', 'subVPSDE', 'VESDE'] = 'VESDE'
-    num_scales: int = 1000  # number of discretization timesteps
-    beta_min: float = 0.1  # VPSDE, subVPSDE param
-    beta_max: float = 20.  # VPSDE, subVPSDE param
-    sigma_min: float = 0.01  # VESDE param
-    sigma_max: float = 50.  # VESDE param
-    # ode solver params
-    method: str = 'RK45'
-    rtol: float = 1e-5
-    atol: float = 1e-5
-    # sampler params
-    denoise: bool = False
 
 
 @dataclass
@@ -103,7 +57,23 @@ class Config:
     dropout: float = 0.3
     use_second_attention: bool = True
 
-    sampler_config = PCSamplingConfig()  # one of DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
+    # sde params
+    sde_name: SDEName = SDEName.VPSDE
+    num_scales: int = 1000
+    schedule_param_start: float = 0.1  # 0.1 for VPSDE, subVPSDE; 0.01 for VESDE
+    schedule_param_end: float = 20.  # 20. for VPSDE, subVPSDE; 50. for VESDE
+
+    # predictor params
+    predictor_name: PredictorName = PredictorName.EULER_MARUYAMA
+    probability_flow: bool = False
+
+    # corrector params
+    corrector_name: CorrectorName = CorrectorName.NONE
+    snr: float = 0.01
+
+    # sampler params
+    num_corrector_steps: int = 1
+    denoise: bool = False
 
 
 def save_config(config: Config, save_folder: str | Path):
@@ -116,9 +86,6 @@ def save_config(config: Config, save_folder: str | Path):
     # save config and sampler config
     with open(save_folder.joinpath('config.pkl'), 'wb') as f:
         pickle.dump(config, f, pickle.HIGHEST_PROTOCOL)
-    with open(save_folder.joinpath('sampler_config.pkl'), 'wb') as f:
-        # must be saved separately due to different object classes of different sampler_configs
-        pickle.dump(config.sampler_config, f, pickle.HIGHEST_PROTOCOL)
 
 
 def load_config(path: str | Path, path_to_checkpoint: bool):
@@ -134,14 +101,4 @@ def load_config(path: str | Path, path_to_checkpoint: bool):
         print(f'Could not read config from .pkl file: {e}')
         print('Using default Config().')
         config = Config()
-
-    try:
-        with open(path.joinpath('sampler_config.pkl'), 'rb') as sampler_config_file:
-            sampler_config = pickle.load(sampler_config_file)
-    except Exception as e:
-        print(f'Could not read sampler_config from .pkl file: {e}')
-        print('Using DDPMSamplingConfig().')
-        sampler_config = DDPMSamplingConfig()
-
-    config.sampler_config = sampler_config
     return config

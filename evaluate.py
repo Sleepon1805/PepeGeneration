@@ -7,8 +7,7 @@ import matplotlib.pyplot as plt
 from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
-from model.samplers import DDPM_Sampler, PC_Sampler, ODE_Sampler
-from config import Paths, Config, DDPMSamplingConfig, PCSamplingConfig, ODESamplingConfig, load_config, progress_bar
+from config import Paths, Config, load_config, progress_bar
 
 
 def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 4), calculate_metrics=False,
@@ -21,24 +20,6 @@ def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 
 
     model, config = load_model_and_config(checkpoint, device)
 
-    # set up sampler
-    if isinstance(sampling_config, DDPMSamplingConfig):
-        print('Using default DDPM Sampler as evaluation sampler.')
-        sampler = DDPM_Sampler(sampling_config)
-    elif isinstance(sampling_config, ODESamplingConfig):
-        print('Using ODE Solver as evaluation sampler.')
-        sampler = ODE_Sampler(sampling_config)
-    elif isinstance(sampling_config, PCSamplingConfig):
-        print('Using PC Sampler as evaluation sampler.')
-        sampler = PC_Sampler(sampling_config)
-    elif sampling_config is None:
-        sampler = model.sampler
-        print(f'Using sampler from model checkpoint: {sampler.__class__.__name__}')
-    else:
-        raise ValueError
-    sampler.to(device)
-    model.sampler = sampler
-
     # get fake batch with zero'ed images and encoded condition
     fake_batch = create_input_batch(condition, grid_shape[0] * grid_shape[1], config)
 
@@ -46,8 +27,8 @@ def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 
     #     model.sampler.visualize_generation_process(model, fake_batch, progress)
 
     # generate images: [grid_shape[0] * grid_shape[1] x 3 x cfg.image_size x cfg.image_size]
-    gen_samples = sampler.generate_samples(model, fake_batch, seed=seed)
-    gen_images = sampler.generated_samples_to_images(gen_samples, grid_shape)
+    gen_samples = model.sampler.generate_samples(model, fake_batch, seed=seed)
+    gen_images = model.sampler.generated_samples_to_images(gen_samples, grid_shape)
 
     # save distributions of generated samples
     if save_images:

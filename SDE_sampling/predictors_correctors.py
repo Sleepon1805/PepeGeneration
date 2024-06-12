@@ -1,6 +1,7 @@
 import abc
 import torch
 import numpy as np
+from enum import Enum
 from typing import Callable
 
 from SDE_sampling import sde_lib
@@ -204,25 +205,28 @@ class NoneCorrector(Corrector):
         return x, x
 
 
-def get_predictor(predictor_name: str, sde: sde_lib.SDE, score_fn: Callable, probability_flow: bool) -> Predictor:
-    if predictor_name.lower() == 'euler_maruyama':
-        return EulerMaruyamaPredictor(sde, score_fn, probability_flow)
-    elif predictor_name.lower() == 'reverse_diffusion':
-        return ReverseDiffusionPredictor(sde, score_fn, probability_flow)
-    elif predictor_name.lower() == 'ancestral_sampling':
-        return AncestralSamplingPredictor(sde, score_fn, probability_flow)
-    elif predictor_name.lower() == 'none':
-        return NonePredictor(sde, score_fn, probability_flow)
-    else:
-        raise ValueError(predictor_name)
+class PredictorName(Enum):
+    NONE = NonePredictor
+    EULER_MARUYAMA = EulerMaruyamaPredictor
+    REVERSE_DIFFUSION = ReverseDiffusionPredictor
+    ANCESTRAL_SAMPLING = AncestralSamplingPredictor
 
 
-def get_corrector(corrector_name: str, sde: sde_lib.SDE, score_fn: Callable, snr: float) -> Corrector:
-    if corrector_name.lower() == 'langevin':
-        return LangevinCorrector(sde, score_fn, snr)
-    elif corrector_name.lower() == 'ald':
-        return AnnealedLangevinDynamics(sde, score_fn, snr)
-    elif corrector_name.lower() == 'none':
-        return NoneCorrector(sde, score_fn, snr)
-    else:
-        raise ValueError(corrector_name)
+class CorrectorName(Enum):
+    NONE = NoneCorrector
+    LANGEVIN = LangevinCorrector
+    ANNEALED_LANGEVIN_DYNAMICS = AnnealedLangevinDynamics
+
+
+def get_predictor(
+        predictor_name: PredictorName, sde: sde_lib.SDE, score_fn: Callable, probability_flow: bool
+) -> Predictor:
+    predictor_instance = predictor_name.value
+    return predictor_instance(sde, score_fn, probability_flow)
+
+
+def get_corrector(
+        corrector_name: CorrectorName, sde: sde_lib.SDE, score_fn: Callable, snr: float
+) -> Corrector:
+    corrector_instance = corrector_name.value
+    return corrector_instance(sde, score_fn, snr)

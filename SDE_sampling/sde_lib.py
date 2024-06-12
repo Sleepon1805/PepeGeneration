@@ -2,9 +2,8 @@
 import abc
 import torch
 import numpy as np
+from enum import Enum
 from typing import Callable
-
-from config import PCSamplingConfig, ODESamplingConfig
 
 
 class SDE(abc.ABC):
@@ -245,14 +244,13 @@ class VESDE(SDE):
         return f, G
 
 
-def get_sde(sde_config) -> SDE:
-    assert isinstance(sde_config, PCSamplingConfig) or isinstance(sde_config, ODESamplingConfig)
-    if sde_config.sde_name.lower() == 'vesde':
-        sde = VESDE(sigma_min=sde_config.sigma_min, sigma_max=sde_config.sigma_max, N=sde_config.num_scales)
-    elif sde_config.sde_name.lower() == 'vpsde':
-        sde = VPSDE(beta_min=sde_config.beta_min, beta_max=sde_config.beta_max, N=sde_config.num_scales)
-    elif sde_config.sde_name.lower() == 'subvpsde':
-        sde = subVPSDE(beta_min=sde_config.beta_min, beta_max=sde_config.beta_max, N=sde_config.num_scales)
-    else:
-        raise ValueError
+class SDEName(Enum):
+    VESDE = VESDE
+    VPSDE = VPSDE
+    subVPSDE = subVPSDE
+
+
+def get_sde(sde_name: SDEName, schedule_param_start, schedule_param_end, num_scales) -> SDE:
+    sde_instance = sde_name.value
+    sde = sde_instance(schedule_param_start, schedule_param_end, num_scales)
     return sde
