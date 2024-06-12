@@ -1,6 +1,6 @@
 import os
 import git
-import pickle
+import yaml
 from typing import Tuple, Literal
 from pathlib import Path
 from dataclasses import dataclass
@@ -84,8 +84,8 @@ def save_config(config: Config, save_folder: str | Path):
     os.makedirs(save_folder, exist_ok=True)
 
     # save config and sampler config
-    with open(save_folder.joinpath('config.pkl'), 'wb') as f:
-        pickle.dump(config, f, pickle.HIGHEST_PROTOCOL)
+    with open(save_folder.joinpath('config.yaml'), 'w') as f:
+        yaml.dump(config, f)
 
 
 def load_config(path: str | Path, path_to_checkpoint: bool):
@@ -95,10 +95,10 @@ def load_config(path: str | Path, path_to_checkpoint: bool):
         path = path.parents[1]
 
     try:
-        with open(path.joinpath('config.pkl'), 'rb') as config_file:
-            config = pickle.load(config_file)
+        with open(path.joinpath('config.yaml'), 'r') as config_file:
+            config = yaml.load(config_file, Loader=yaml.Loader)
     except Exception as e:
-        print(f'Could not read config from .pkl file: {e}')
+        print(f'Could not read config from .yaml file: {e}')
         print('Using default Config().')
         config = Config()
     return config
