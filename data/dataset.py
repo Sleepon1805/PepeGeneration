@@ -9,14 +9,14 @@ from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from typing import Tuple, List
 
-from config import Paths, Config
+from config import Paths, DataConfig
 from data.condition_utils import decode_condition
 
 
 class PepeDataset(Dataset):
-    def __init__(self, dataset_name: str, image_size: int, paths: Paths, augments=None):
-        self.dataset_name = dataset_name
-        self.path = paths.parsed_datasets + dataset_name + str(image_size)
+    def __init__(self, data_config: DataConfig, paths: Paths, augments=None):
+        self.dataset_name = data_config.dataset_name
+        self.path = paths.parsed_datasets + self.dataset_name + str(data_config.image_size)
         self.augmentations = augments
 
         self._init_database()
@@ -69,23 +69,26 @@ class PepeDataset(Dataset):
 
         if axis:
             axis.imshow(image)
-            axis.set_title(features)
+            axis.set_title(str(features))
             axis.axis('off')
             return axis
         else:
             plt.imshow(image)
-            plt.title(features)
+            plt.title(str(features))
             plt.show()
 
 
 if __name__ == '__main__':
-    cfg = Config()
-    dataset = PepeDataset(dataset_name=cfg.dataset_name, image_size=cfg.image_size, paths=Paths())
+    data_cfg = DataConfig(
+        dataset_name='pepe',
+        image_size=128,
+    )
+    dataset = PepeDataset(data_cfg, paths=Paths())
 
     one_item = dataset[137]
     dataset.show_item(one_item)
 
-    dataloader = DataLoader(dataset, batch_size=cfg.batch_size, num_workers=8)
+    dataloader = DataLoader(dataset, batch_size=16, num_workers=8)
     for batch in tqdm(dataloader, desc="Testing dataset... "):
-        assert batch[0].shape[1:] == (3, cfg.image_size, cfg.image_size), batch[0].shape
+        assert batch[0].shape[1:] == (3, data_cfg.image_size, data_cfg.image_size), batch[0].shape
         assert batch[1].shape[1:] == (40,), batch[1].shape

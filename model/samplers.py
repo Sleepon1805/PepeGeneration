@@ -4,7 +4,7 @@ from typing import Tuple, Callable
 from abc import ABC, abstractmethod
 from lightning import LightningModule
 
-from config import Config, progress_bar
+from config import PCSamplerConfig, progress_bar
 from SDE_sampling.sde_lib import get_sde
 from SDE_sampling.predictors_correctors import get_predictor, get_corrector
 
@@ -73,32 +73,32 @@ class Sampler(ABC):
 
 
 class PC_Sampler(Sampler):
-    def __init__(self, model: LightningModule, config: Config):
+    def __init__(self, model: LightningModule, config: PCSamplerConfig):
         super().__init__()
         self.model = model
         self.sde = get_sde(
-            config.sde_name,
-            config.schedule_param_start,
-            config.schedule_param_end,
-            config.num_scales
+            config.sde_config.sde_name,
+            config.sde_config.schedule_param_start,
+            config.sde_config.schedule_param_end,
+            config.sde_config.num_scales
         )
         self.score_fn = self.get_score_fn()
 
         self.predictor = get_predictor(
-            config.predictor_name,
+            config.pc_config.predictor_name,
             self.sde,
             self.score_fn,
-            config.probability_flow
+            config.pc_config.probability_flow
         )
         self.corrector = get_corrector(
-            config.corrector_name,
+            config.pc_config.corrector_name,
             self.sde,
             self.score_fn,
-            config.snr
+            config.pc_config.snr
         )
 
-        self.num_corrector_steps = config.num_corrector_steps
         self.denoise = config.denoise
+        self.num_corrector_steps = config.num_corrector_steps
 
     def get_score_fn(self) -> Callable:
         """

@@ -16,3 +16,4 @@ scipy
 opencv-python
 pandas
 requests
+dacite

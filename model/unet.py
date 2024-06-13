@@ -3,18 +3,18 @@ import torch.nn as nn
 from lightning import LightningModule
 
 from model.modules import (ResBlock, Upsample, Downsample, AttentionBlock, SinTimestepEmbedding, NormalizationLayer)
-from config import Config
+from config import ModelConfig, CONDITION_SIZE
 
 
 class UNetModel(LightningModule):
-    def __init__(self, config: Config, in_channels=3):
+    def __init__(self, model_config: ModelConfig, in_channels=3):
         super().__init__()
-        self.init_channels = config.init_channels
-        self.channel_mult = config.channel_mult
-        self.conv_resample = config.conv_resample
-        self.num_heads = config.num_heads
-        self.dropout = config.dropout
-        self.use_condition = config.use_condition
+        self.init_channels = model_config.init_channels
+        self.channel_mult = model_config.channel_mult
+        self.conv_resample = model_config.conv_resample
+        self.num_heads = model_config.num_heads
+        self.dropout = model_config.dropout
+        self.use_condition = model_config.use_condition
 
         self.in_channels = in_channels
         self.model_channels = [mult * self.init_channels for mult in self.channel_mult]
@@ -26,11 +26,11 @@ class UNetModel(LightningModule):
             self.cond_embed_dim = self.init_channels * 3
             self.embed_dim = self.time_embed_dim + self.cond_embed_dim
             self.time_embed = TimeEmbedding(self.init_channels, self.time_embed_dim)
-            self.condition_emb = ConditionEmbedding(self.init_channels, self.cond_embed_dim, config.condition_size)
+            self.condition_emb = ConditionEmbedding(self.init_channels, self.cond_embed_dim, CONDITION_SIZE)  # fixme
         else:
             print('Not using condition in model')
             self.embed_dim = self.init_channels * 4
-            self.time_embedd = TimeEmbedding(self.init_channels, self.embed_dim)
+            self.time_embed = TimeEmbedding(self.init_channels, self.embed_dim)
 
         # downsample layers
         self.init_conv = nn.Conv2d(self.in_channels, self.init_channels, 3, padding=1)
@@ -48,7 +48,7 @@ class UNetModel(LightningModule):
         self.downsample_2 = DownsampleLayer(
             self.model_channels[1], self.embed_dim, self.model_channels[2],
             self.dropout, self.num_heads, self.conv_resample,
-            use_attention=config.use_second_attention, use_downsample=True,
+            use_attention=model_config.use_second_attention, use_downsample=True,
         )
         self.downsample_3 = DownsampleLayer(
             self.model_channels[2], self.embed_dim, self.model_channels[3],
@@ -71,7 +71,7 @@ class UNetModel(LightningModule):
             self.model_channels[2], self.embed_dim, self.model_channels[1],
             sc_channels=(self.model_channels[2], self.model_channels[2], self.model_channels[1]),
             dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
-            use_attention=config.use_second_attention, use_upsample=True,
+            use_attention=model_config.use_second_attention, use_upsample=True,
         )
         self.upsample_1 = UpsampleLayer(
             self.model_channels[1], self.embed_dim, self.model_channels[0],
@@ -108,7 +108,7 @@ class UNetModel(LightningModule):
             cond_emb = self.condition_emb(cond)
             emb = torch.concat([time_emb, cond_emb], dim=-1)
         else:
-            emb = self.time_embedd(timesteps)
+            emb = self.time_embed(timesteps)
 
         x = self.init_conv(x)
 
@@ -310,9 +310,29 @@ class UpsampleLayer(nn.Module):
 
 
 if __name__ == '__main__':
-    cfg = Config()
-    model = UNetModel(cfg)
-    example_input_x = torch.Tensor(cfg.batch_size, 3, cfg.image_size, cfg.image_size)
-    example_input_t = torch.ones(cfg.batch_size)
-    model = torch.compile(model)
-    print(model(example_input_x, example_input_t))
+    from config import DataConfig
+    from lightning import Fabric
+    from time import time
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    to_compile = True  # pytorch 2.0 feature
+    batch_size = 32
+    torch.set_float32_matmul_precision('high')
+
+    model_cfg = ModelConfig()
+    model = UNetModel(model_cfg)
+    model.to(device)
+
+    data_cfg = DataConfig()
+    example_input_x = torch.rand(batch_size, 3, data_cfg.image_size, data_cfg.image_size).to(device)
+    example_input_t = torch.ones(batch_size, device=device)
+
+    if to_compile:
+        model = torch.compile(model, fullgraph=True)
+
+    for i in range(10):
+        print(f"Forward pass {i+1}/10:")
+        ttime = time()
+        res = model(example_input_x, example_input_t)
+        print(f"Time: {time() - ttime}")
+

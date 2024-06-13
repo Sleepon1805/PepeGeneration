@@ -25,7 +25,7 @@ if __name__ == '__main__':
     paths = Paths()
 
     # parse training data
-    if not os.path.exists(paths.parsed_datasets + cfg.dataset_name + str(cfg.image_size)):
+    if not os.path.exists(paths.parsed_datasets + cfg.data_config.dataset_name + str(cfg.data_config.image_size)):
         print('Parsing lmdb dataset with images')
         dataparser = DataParser(paths, cfg)
         dataparser.parse_and_save_dataset()
@@ -35,29 +35,45 @@ if __name__ == '__main__':
     print(f'Running in debug mode: {str(debug_mode)}')
 
     # dataset
-    dataset = PepeDataset(cfg.dataset_name, cfg.image_size, paths=Paths(), augments=None)
-    train_set, val_set = torch.utils.data.random_split(dataset, cfg.dataset_split,
-                                                       generator=torch.Generator().manual_seed(42))
+    dataset = PepeDataset(cfg.data_config, paths=Paths(), augments=None)
+    train_set, val_set = torch.utils.data.random_split(
+        dataset, cfg.training_config.dataset_split,
+        generator=torch.Generator().manual_seed(42)
+    )
 
     # dataloader
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=cfg.batch_size, pin_memory=True,
-                                               num_workers=0 if debug_mode else 12)
-    val_loader = torch.utils.data.DataLoader(val_set, batch_size=cfg.batch_size, pin_memory=True,
-                                             num_workers=0 if debug_mode else 12)
+    train_loader = torch.utils.data.DataLoader(
+        train_set,
+        batch_size=cfg.training_config.batch_size,
+        pin_memory=True, drop_last=True,
+        num_workers=0 if debug_mode else 12
+    )
+    val_loader = torch.utils.data.DataLoader(
+        val_set,
+        batch_size=cfg.training_config.batch_size,
+        pin_memory=True, drop_last=True,
+        num_workers=0 if debug_mode else 12
+    )
 
     # init or load pretrained model
-    if cfg.pretrained_ckpt is None:
+    if cfg.model_config.pretrained_ckpt is None:
         model = PepeGenerator(cfg)
     else:
-        checkpoint = cfg.pretrained_ckpt
+        checkpoint = cfg.model_config.pretrained_ckpt
         model = PepeGenerator.load_from_checkpoint(checkpoint, config=cfg, strict=False)
         model.config = cfg
-    # model = torch.compile(model)
+
+    # compile model
+    # model: lightning.LightningModule = torch.compile(model, fullgraph=True)
 
     # logger
-    logger = TensorBoardLogger('lightning_logs', name=cfg.dataset_name, log_graph=False, default_hp_metric=False,
-                               # version=0,
-                               )
+    logger = TensorBoardLogger(
+        save_dir='lightning_logs',
+        name=cfg.data_config.dataset_name,
+        log_graph=False,
+        default_hp_metric=False,
+        # version=0,
+    )
 
     # train the model
     callbacks = [
@@ -75,10 +91,10 @@ if __name__ == '__main__':
         callbacks=callbacks,
         log_every_n_steps=1,
         logger=logger,
-        precision=cfg.precision,
+        precision=cfg.training_config.precision,
         # profiler=AdvancedProfiler(filename='profiler'),
         # num_sanity_val_steps=0,
-        # limit_train_batches=20,
+        # limit_train_batches=100,
         # limit_val_batches=20,
     )
 

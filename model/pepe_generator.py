@@ -12,34 +12,49 @@ class PepeGenerator(LightningModule):
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
-        self.sampler: PC_Sampler = PC_Sampler(self, config)
-        self.model = UNetModel(config)
+        self.data_config = config.data_config
+        self.training_config = config.training_config
+
+        self.sampler: PC_Sampler = PC_Sampler(self, config.sampler_config)
+        self.model = UNetModel(config.model_config)
 
         self.loss_func = torch.nn.MSELoss()
 
         self.example_input_array = (
             (
-                torch.Tensor(config.batch_size, 3, config.image_size, config.image_size),
-                torch.ones(config.batch_size, config.condition_size)
+                torch.rand(
+                    self.training_config.batch_size,
+                    3,
+                    self.data_config.image_size,
+                    self.data_config.image_size
+                ),
+                torch.ones(
+                    self.training_config.batch_size,
+                    self.data_config.condition_size
+                )
             ),
-            torch.ones(config.batch_size),
+            torch.ones(self.training_config.batch_size),
         )
         self.save_hyperparameters(self.config.__dict__)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
-        if self.config.scheduler is None or self.config.scheduler.lower() in ('no', 'none'):
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.training_config.lr)
+        scheduler_name = (self.training_config.scheduler or 'none').lower()
+        if scheduler_name in ('no', 'none'):
             print('No scheduler')
             return optimizer
-        elif self.config.scheduler.lower() == 'multisteplr':
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, gamma=0.1, milestones=(5, 10))
+        elif scheduler_name == 'multisteplr':
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                optimizer, gamma=0.1, milestones=(5, 10)
+            )
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler}}
-        elif self.config.scheduler.lower() == 'reducelronplateau':
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=4, min_lr=1e-6,
-                                                                   mode='min')
+        elif scheduler_name == 'reducelronplateau':
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, factor=0.1, patience=4, min_lr=1e-6, mode='min'
+            )
             return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'monitor': 'val_loss'}}
         else:
-            raise NotImplemented(self.config.scheduler)
+            raise NotImplemented(self.training_config.scheduler)
 
     def to(self, device):
         super().to(device)
@@ -69,8 +84,9 @@ class PepeGenerator(LightningModule):
 
         if len(labels) == 0:
             # take random condition
-            cond = torch.bernoulli(torch.full((x.shape[0], self.config.condition_size),
-                                              0.5, device=self.device)) * 2 - 1
+            cond = torch.bernoulli(
+                torch.full((x.shape[0], self.data_config.condition_size), 0.5, device=self.device)
+            ) * 2 - 1
         elif len(labels) == 1:
             cond = labels[0]
         else:
@@ -96,7 +112,7 @@ class PepeGenerator(LightningModule):
         Generate some images to log them, their distribution and FID metric
         """
 
-        if not self.config.calculate_fid:
+        if not self.training_config.calculate_fid:
             num_images = min(batch[0].shape[0], grid_size[0] * grid_size[1])
             batch[0] = batch[0][:num_images]
 
@@ -104,16 +120,19 @@ class PepeGenerator(LightningModule):
 
         # images
         images = self.sampler.generated_samples_to_images(gen_samples, grid_size)
-        self.logger.experiment.add_image('generated images', images, self.current_epoch, dataformats="HWC")
+        self.logger.experiment.add_image(  # noqa
+            'generated images', images, self.current_epoch, dataformats="HWC"
+        )
 
         # distributions
         try:
-            self.logger.experiment.add_histogram('generated_distribution', gen_samples.clip(-2.5, 2.5),
-                                                 global_step=self.current_epoch)
+            self.logger.experiment.add_histogram(  # noqa
+                'generated_distribution', gen_samples.clip(-2.5, 2.5), global_step=self.current_epoch
+            )
         except:
             print('Could not log histogram')
 
-        if self.config.calculate_fid:
+        if self.training_config.calculate_fid:
             # Frechet Inception Distance
             fid_loss = self.calculate_fid(gen_samples)
             self.log('fid_metric', fid_loss)

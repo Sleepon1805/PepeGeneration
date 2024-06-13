@@ -1,12 +1,14 @@
 import os
+
 import git
 import yaml
+import dacite
 from typing import Tuple, Literal
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict, field
 
 from data.condition_utils import CONDITION_SIZE
-from progress_bar import progress_bar
+from progress_bar import progress_bar  # noqa
 from SDE_sampling.sde_lib import SDEName
 from SDE_sampling.predictors_correctors import PredictorName, CorrectorName
 
@@ -27,28 +29,26 @@ class Paths:
 
 
 @dataclass
-class Config:
-    # git commit hash for logging
-    git_hash: str = curr_git_hash()
-
-    # training params
-    batch_size: int = 32
-    precision: str = 32
-    image_size: int = 64  # size of image NxN
-    lr: float = 1e-3  # learning rate on training start
-    scheduler: str = 'multisteplr'
-    gradient_clip_algorithm: str = "norm"
-    gradient_clip_val: float = 0.5
-    dataset_split: Tuple[float, float] = (0.8, 0.2)
-    calculate_fid: bool = False
-
-    # pretrained backbone and current dataset
+class DataConfig:
     dataset_name: Literal['celeba', 'pepe', 'twitch_emotes'] = 'celeba'
-    use_condition: bool = False
+    image_size: int = 64  # size of image NxN
     condition_size: int = CONDITION_SIZE
-    pretrained_ckpt: str = None
-    # pretrained_ckpt: str = './lightning_logs/celeba/version_12/checkpoints/last.ckpt'
 
+
+@dataclass
+class TrainingConfig:
+    batch_size: int = 32
+    precision: str | int = 32
+    lr: float = 1e-3  # learning rate on training start
+    dataset_split: Tuple[float, float] = (0.8, 0.2)
+    scheduler: str = 'multisteplr'
+    gradient_clip_algorithm: str = 'norm'
+    gradient_clip_val: float = 0.5
+    calculate_fid: bool = False  # calculate and log FID score on validation
+
+
+@dataclass
+class ModelConfig:
     # model params
     init_channels: int = 128
     channel_mult: Tuple[int, int, int, int] = (1, 2, 4, 4)
@@ -56,24 +56,47 @@ class Config:
     num_heads: int = 1
     dropout: float = 0.3
     use_second_attention: bool = True
+    use_condition: bool = False
+    pretrained_ckpt: str | None = None
+    # pretrained_ckpt: str = './lightning_logs/celeba/version_12/checkpoints/last.ckpt'
 
-    # sde params
+
+@dataclass
+class SDEConfig:
     sde_name: SDEName = SDEName.VPSDE
     num_scales: int = 1000
-    schedule_param_start: float = 0.1  # 0.1 for VPSDE, subVPSDE; 0.01 for VESDE
-    schedule_param_end: float = 20.  # 20. for VPSDE, subVPSDE; 50. for VESDE
+    schedule_param_start: float = 0.1  # beta_0 = 0.1 for VPSDE, subVPSDE; sigma_min = 0.01 for VESDE
+    schedule_param_end: float = 20.  # beta_1 = 20. for VPSDE, subVPSDE; sigma_max = 50. for VESDE
 
+
+@dataclass
+class PredictorCorrectorConfig:
     # predictor params
     predictor_name: PredictorName = PredictorName.EULER_MARUYAMA
     probability_flow: bool = False
-
     # corrector params
     corrector_name: CorrectorName = CorrectorName.NONE
     snr: float = 0.01
 
-    # sampler params
-    num_corrector_steps: int = 1
+
+@dataclass
+class PCSamplerConfig:
     denoise: bool = False
+    num_corrector_steps: int = 1
+    sde_config: SDEConfig = field(default_factory=SDEConfig)
+    pc_config: PredictorCorrectorConfig = field(default_factory=PredictorCorrectorConfig)
+
+
+@dataclass
+class Config:
+    # git commit hash for logging
+    git_hash: str = curr_git_hash()
+
+    data_config: DataConfig = field(default_factory=DataConfig)
+    training_config: TrainingConfig = field(default_factory=TrainingConfig)
+
+    model_config: ModelConfig = field(default_factory=ModelConfig)
+    sampler_config: PCSamplerConfig = field(default_factory=PCSamplerConfig)
 
 
 def save_config(config: Config, save_folder: str | Path):
@@ -84,8 +107,9 @@ def save_config(config: Config, save_folder: str | Path):
     os.makedirs(save_folder, exist_ok=True)
 
     # save config and sampler config
+    config_dict = asdict(config)
     with open(save_folder.joinpath('config.yaml'), 'w') as f:
-        yaml.dump(config, f)
+        yaml.dump(config_dict, f)
 
 
 def load_config(path: str | Path, path_to_checkpoint: bool):
@@ -96,9 +120,18 @@ def load_config(path: str | Path, path_to_checkpoint: bool):
 
     try:
         with open(path.joinpath('config.yaml'), 'r') as config_file:
-            config = yaml.load(config_file, Loader=yaml.Loader)
+            config_dict = yaml.load(config_file, Loader=yaml.Loader)
+        config = dacite.from_dict(data_class=Config, data=config_dict)
     except Exception as e:
         print(f'Could not read config from .yaml file: {e}')
         print('Using default Config().')
         config = Config()
     return config
+
+
+if __name__ == '__main__':
+    saved_config = Config()
+    save_config(saved_config, './')
+    loaded_config = load_config('./', path_to_checkpoint=False)
+    assert saved_config == loaded_config
+    print(loaded_config)

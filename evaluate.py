@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
-from config import Paths, Config, load_config, progress_bar
+from config import Paths, Config, load_config, progress_bar, CONDITION_SIZE
 
 
-def inference(checkpoint: Path, sampling_config, condition=None, grid_shape=(4, 4), calculate_metrics=False,
+def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_metrics=False,
               save_images=True, on_gpu=True, seed=42):
     folder_to_save = checkpoint.parents[1].joinpath('results/')
     if save_images and not os.path.exists(folder_to_save):
@@ -64,45 +64,51 @@ def load_model_and_config(checkpoint: Path | str, device: str) -> (PepeGenerator
     return model, config
 
 
-def create_input_batch(condition, num_samples, config):
+def create_input_batch(condition, num_samples, config: Config):
+    data_config = config.data_config
     if condition is None:
         try:
             print('Got no condition. Taking input images and conditions from first val batch.')
-            dataset = PepeDataset(config.dataset_name, config.image_size, paths=Paths(), augments=None)
-            train_set, val_set = torch.utils.data.random_split(dataset, config.dataset_split,
-                                                               generator=torch.Generator().manual_seed(137))
-            loader = torch.utils.data.DataLoader(val_set, batch_size=num_samples, pin_memory=True,
-                                                 num_workers=0)
-            batch = next(iter(loader))
+            dataset = PepeDataset(data_config, paths=Paths(), augments=None)
+            _, val_set = torch.utils.data.random_split(
+                dataset, config.training_config.dataset_split, generator=torch.Generator().manual_seed(137)
+            )
+            dataloader = torch.utils.data.DataLoader(
+                val_set, batch_size=num_samples, pin_memory=True, num_workers=0
+            )
+            batch = next(iter(dataloader))
             return batch
         except AssertionError:
             print('Simulating input batch and condition with zeros')
-            fake_image_batch = torch.zeros((num_samples, 3, config.image_size, config.image_size))
-            fake_cond_batch = torch.ones(num_samples, config.condition_size)
+            fake_image_batch = torch.zeros((num_samples, 3, data_config.image_size, data_config.image_size))
+            fake_cond_batch = torch.ones(num_samples, CONDITION_SIZE)
             fake_batch = (fake_image_batch, fake_cond_batch)
             return fake_batch
     else:
         print(f'Generating images for condition {condition}, input images are set to zeros.')
-        encoded_cond = encode_condition(config.dataset_name, condition)
+        encoded_cond = encode_condition(data_config.dataset_name, condition)
         encoded_cond = torch.from_numpy(encoded_cond)
         cond_batch = torch.repeat_interleave(encoded_cond, num_samples, dim=0)
 
         # fake batch
-        fake_image_batch = torch.zeros((num_samples, 3, config.image_size, config.image_size))
+        fake_image_batch = torch.zeros((num_samples, 3, data_config.image_size, data_config.image_size))
         fake_batch = (fake_image_batch, cond_batch)
         return fake_batch
 
 
 def calculate_fid_loss(gen_samples, config: Config, device: str):
+    data_config = config.data_config
     fid_metric = torchmetrics.image.fid.FrechetInceptionDistance(feature=192, normalize=True).to(device)
 
     # real images
-    dataset = PepeDataset(config.dataset_name, config.image_size, paths=Paths(), augments=None)
-    train_set, val_set = torch.utils.data.random_split(dataset, config.dataset_split,
-                                                       generator=torch.Generator().manual_seed(137))
-    val_loader = torch.utils.data.DataLoader(val_set, batch_size=gen_samples.shape[0], pin_memory=True,
-                                             num_workers=0)
-    for samples, cond in progress_bar(val_loader, desc="Adding real images to FID"):
+    dataset = PepeDataset(data_config, paths=Paths(), augments=None)
+    _, val_set = torch.utils.data.random_split(
+        dataset, config.training_config.dataset_split, generator=torch.Generator().manual_seed(137)
+    )
+    dataloader = torch.utils.data.DataLoader(
+        val_set, batch_size=gen_samples.shape[0], pin_memory=True, num_workers=0
+    )
+    for samples, cond in progress_bar(dataloader, desc="Adding real images to FID"):
         images = (samples.to(device) + 1) / 2
         fid_metric.update(images, real=True)
 
@@ -115,15 +121,12 @@ def calculate_fid_loss(gen_samples, config: Config, device: str):
 
 
 if __name__ == '__main__':
-    version = 11
+    version = 17
     dataset_name = 'celeba'
     ckpt = Path(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/last.ckpt')
 
-    sampling_cfg = None  # None, DDPMSamplingConfig(), PCSamplingConfig(), ODESamplingConfig()
-
     inference(
         ckpt,
-        sampling_config=sampling_cfg,
         condition=None,
         grid_shape=(2, 2),
         calculate_metrics=True,
