@@ -8,17 +8,16 @@ from pathlib import Path
 from dataclasses import dataclass, asdict, field
 
 from data.condition_utils import CONDITION_SIZE
-from utils import typings, progress_bar
 from SDE_sampling.sde_lib import SDEName
 from SDE_sampling.predictors_correctors import PredictorName, CorrectorName
 
 
 # use either rich or tqdm progress bars
-progress_bar.USE_RICH_PROGRESS_BAR = False
+os.environ["USE_RICH_PROGRESS_BAR"] = "True"
 # enable jax type checks during runtime
-typings.RUNTIME_TYPECHECKS = True
+os.environ["RUNTIME_TYPECHECKS"] = "True"
 # highres image size multiplier
-HIGHRES_IMAGE_SIZE_MULT = 4
+os.environ["HIGHRES_IMAGE_SIZE_MULT"] = "4"
 
 
 def curr_git_hash():

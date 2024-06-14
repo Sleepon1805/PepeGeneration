@@ -1,3 +1,4 @@
+import os
 import abc
 import torch
 from typing import Tuple
@@ -9,7 +10,7 @@ Docs for jaxtyping:
 https://docs.kidger.site/jaxtyping/
 """
 
-RUNTIME_TYPECHECKS = True
+RUNTIME_TYPECHECKS = bool(os.environ.get("RUNTIME_TYPECHECKS", False))
 
 
 # torch.Tensor of dtype float32 and shape (num_images, num_channels, img_size, img_size)
