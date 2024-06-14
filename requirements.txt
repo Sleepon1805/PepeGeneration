@@ -17,3 +17,5 @@ opencv-python
 pandas
 requests
 dacite
+jaxtyping
+beartype

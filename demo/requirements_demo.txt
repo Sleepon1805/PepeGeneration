@@ -4,6 +4,7 @@ lmdb
 matplotlib
 numpy
 rich
+jupyter
 torch-fidelity
 torch
 torchvision

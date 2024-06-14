@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 from data.dataset import PepeDataset
 from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
-from config import Paths, Config, load_config, progress_bar, CONDITION_SIZE
+from config import Paths, Config, load_config, CONDITION_SIZE
+from utils.progress_bar import progress_bar
 
 
 def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_metrics=False,

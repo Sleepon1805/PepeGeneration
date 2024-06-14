@@ -8,10 +8,16 @@ from pathlib import Path
 from dataclasses import dataclass, asdict, field
 
 from data.condition_utils import CONDITION_SIZE
-from progress_bar import progress_bar  # noqa
+from utils import typings, progress_bar
 from SDE_sampling.sde_lib import SDEName
 from SDE_sampling.predictors_correctors import PredictorName, CorrectorName
 
+
+# use either rich or tqdm progress bars
+progress_bar.USE_RICH_PROGRESS_BAR = False
+# enable jax type checks during runtime
+typings.RUNTIME_TYPECHECKS = True
+# highres image size multiplier
 HIGHRES_IMAGE_SIZE_MULT = 4
 
 

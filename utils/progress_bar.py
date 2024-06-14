@@ -1,4 +1,3 @@
-import sys
 from tqdm import tqdm
 from typing import Collection
 from typing_extensions import override
@@ -7,6 +6,7 @@ from lightning.pytorch.callbacks import (
     RichProgressBar,
 )
 from rich import progress
+
 
 USE_RICH_PROGRESS_BAR = True
 
@@ -73,8 +73,6 @@ class CustomRichProgressBar(RichProgressBar):
 
 
 if USE_RICH_PROGRESS_BAR:
-    print('Using rich for progress bar.')
     progress_bar = CustomRichProgressBar()
 else:
-    print('Using tqdm for progress bar.')
     progress_bar = CustomTQDMProgressBar()

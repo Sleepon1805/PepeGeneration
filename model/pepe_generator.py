@@ -4,7 +4,7 @@ from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.inception import InceptionScore
 
 from model.unet import UNetModel
-from model.samplers import PC_Sampler
+from SDE_sampling.sde_sampler import PC_Sampler
 from config import Config, save_config
 
 

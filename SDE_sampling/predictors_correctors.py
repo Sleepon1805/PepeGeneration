@@ -1,56 +1,50 @@
-import abc
 import torch
-import numpy as np
 from enum import Enum
-from typing import Callable
+from typing import Callable, Tuple
+from abc import abstractmethod
 
+from utils.typings import TrainImagesType, BatchType, BatchedFloatType, ABCTypeChecked
 from SDE_sampling import sde_lib
 
 
-class Predictor(abc.ABC):
+class Predictor(ABCTypeChecked):
     """ The abstract class for a predictor algorithm. """
 
-    def __init__(self, sde, score_fn, probability_flow=False):
-        super().__init__()
+    def __init__(self, sde: sde_lib.SDE, score_fn: Callable, probability_flow=False):
         self.sde = sde
-        # Compute the reverse SDE/ODE
-        self.rsde = sde_lib.ReverseSDE(sde, score_fn, probability_flow)
         self.score_fn = score_fn
+        self.rsde = sde_lib.ReverseSDE(sde, score_fn, probability_flow)
 
-    @abc.abstractmethod
-    def update(self, batch: tuple[torch.Tensor, ...], t):
+    @abstractmethod
+    def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         """
         One update of the predictor.
-
-        Args:
-            batch: A Batch representing the current state
-            t: A Pytorch tensor representing the current time step.
-        Returns:
-            x: A PyTorch tensor of the next state.
-            x_mean: A PyTorch tensor. The next state without random noise. Useful for denoising.
+        :param batch: Batch with noised images and labels
+        :param t: Tensor with time steps for each image.
+        :return: Tuple of two Tensors: Images with random noise and images without noise.
         """
         pass
 
 
 class EulerMaruyamaPredictor(Predictor):
-    def __init__(self, sde, score_fn, probability_flow=False):
+    def __init__(self, sde: sde_lib.SDE, score_fn: Callable, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
 
-    def update(self, batch: tuple[torch.Tensor, ...], t):
+    def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         x = batch[0]
         dt = -1. / self.rsde.N
         z = torch.randn_like(x)
         drift, diffusion = self.rsde.get_sde(batch, t)
         x_mean = x + drift * dt
-        x = x_mean + diffusion[:, None, None, None] * np.sqrt(-dt) * z
+        x = x_mean + diffusion[:, None, None, None] * (-dt) ** 0.5 * z
         return x, x_mean
 
 
 class ReverseDiffusionPredictor(Predictor):
-    def __init__(self, sde, score_fn, probability_flow=False):
+    def __init__(self, sde: sde_lib.SDE, score_fn: Callable, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
 
-    def update(self, batch: tuple[torch.Tensor, ...], t):
+    def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         x = batch[0]
         f, G = self.rsde.discretize(batch, t)
         z = torch.randn_like(x)
@@ -62,17 +56,21 @@ class ReverseDiffusionPredictor(Predictor):
 class AncestralSamplingPredictor(Predictor):
     """ The ancestral sampling predictor. Currently only supports VE/VP SDEs. """
 
-    def __init__(self, sde, score_fn, probability_flow=False):
+    def __init__(self, sde: sde_lib.SDE, score_fn: Callable, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
         if not isinstance(sde, sde_lib.VPSDE) and not isinstance(sde, sde_lib.VESDE):
             raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
         assert not probability_flow, "Probability flow not supported by ancestral sampling"
 
-    def vesde_update_fn(self, batch: tuple[torch.Tensor, ...], t):
+    def vesde_update_fn(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+        assert isinstance(self.sde, sde_lib.VESDE)
         x = batch[0]
         timestep = (t * (self.sde.N - 1) / self.sde.T).long()
         sigma = self.sde.discrete_sigmas.to(t.device)[timestep]
-        adjacent_sigma = torch.where(timestep == 0, torch.zeros_like(t), self.sde.discrete_sigmas.to(t.device)[timestep - 1])
+        adjacent_sigma = torch.where(  # noqa
+            timestep == 0, torch.zeros_like(t),
+            self.sde.discrete_sigmas.to(t.device)[timestep - 1]
+        )
         score = self.score_fn(batch, t)
         x_mean = x + score * (sigma ** 2 - adjacent_sigma ** 2)[:, None, None, None]
         std = torch.sqrt((adjacent_sigma ** 2 * (sigma ** 2 - adjacent_sigma ** 2)) / (sigma ** 2))
@@ -80,7 +78,8 @@ class AncestralSamplingPredictor(Predictor):
         x = x_mean + std[:, None, None, None] * noise
         return x, x_mean
 
-    def vpsde_update_fn(self, batch: tuple[torch.Tensor, ...], t):
+    def vpsde_update_fn(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+        assert isinstance(self.sde, sde_lib.VPSDE)
         x = batch[0]
         timestep = (t * (self.sde.N - 1) / self.sde.T).long()
         beta = self.sde.discrete_betas.to(t.device)[timestep]
@@ -91,7 +90,7 @@ class AncestralSamplingPredictor(Predictor):
         x = x_mean + torch.sqrt(beta)[:, None, None, None] * noise
         return x, x_mean
 
-    def update(self, batch: tuple[torch.Tensor, ...], t):
+    def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         if isinstance(self.sde, sde_lib.VESDE):
             return self.vesde_update_fn(batch, t)
         elif isinstance(self.sde, sde_lib.VPSDE):
@@ -101,47 +100,42 @@ class AncestralSamplingPredictor(Predictor):
 class NonePredictor(Predictor):
     """ An empty predictor that does nothing. """
 
-    def __init__(self, sde, score_fn, probability_flow=False):
+    def __init__(self, sde: sde_lib.SDE, score_fn: Callable, probability_flow=False):
         super().__init__(sde, score_fn, probability_flow)
 
-    def update(self, batch: tuple[torch.Tensor, ...], t):
+    def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         x = batch[0]
         return x, x
 
 
-class Corrector(abc.ABC):
+class Corrector(ABCTypeChecked):
     """ The abstract class for a corrector algorithm. """
 
-    def __init__(self, sde, score_fn, snr):
-        super().__init__()
+    def __init__(self, sde: sde_lib.SDE, score_fn: Callable, snr: float):
         self.sde = sde
         self.score_fn = score_fn
         self.snr = snr
 
-    @abc.abstractmethod
-    def update(self, batch: tuple[torch.Tensor, ...], t):
+    @abstractmethod
+    def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         """
-        One update of the corrector.
-
-        Args:
-            batch: A Batch representing the current state
-            t: A PyTorch tensor representing the current time step.
-        Returns:
-            x: A PyTorch tensor of the next state.
-            x_mean: A PyTorch tensor. The next state without random noise. Useful for denoising.
+        One update of the predictor.
+        :param batch: Batch with noised images and labels
+        :param t: Tensor with time steps for each image.
+        :return: Tuple of two Tensors: Images with random noise and images without noise.
         """
         pass
 
 
 class LangevinCorrector(Corrector):
-    def __init__(self, sde, score_fn, snr):
+    def __init__(self, sde: sde_lib.SDE, score_fn: Callable, snr: float):
         super().__init__(sde, score_fn, snr)
         if not isinstance(sde, sde_lib.VPSDE) \
                 and not isinstance(sde, sde_lib.VESDE) \
                 and not isinstance(sde, sde_lib.subVPSDE):
             raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
 
-    def update(self, batch: tuple[torch.Tensor, ...], t):
+    def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         x = batch[0]
         if isinstance(self.sde, sde_lib.VPSDE) or isinstance(self.sde, sde_lib.subVPSDE):
             timestep = (t * (self.sde.N - 1) / self.sde.T).long()
@@ -166,14 +160,14 @@ class AnnealedLangevinDynamics(Corrector):
     We include this corrector only for completeness. It was not directly used in our paper.
     """
 
-    def __init__(self, sde, score_fn, snr):
+    def __init__(self, sde: sde_lib.SDE, score_fn: Callable, snr: float):
         super().__init__(sde, score_fn, snr)
         if not isinstance(sde, sde_lib.VPSDE) \
                 and not isinstance(sde, sde_lib.VESDE) \
                 and not isinstance(sde, sde_lib.subVPSDE):
             raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
 
-    def update(self, batch: tuple[torch.Tensor, ...], t):
+    def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         x = batch[0]
         score_fn = self.score_fn
         target_snr = self.snr
@@ -197,10 +191,10 @@ class AnnealedLangevinDynamics(Corrector):
 class NoneCorrector(Corrector):
     """ An empty corrector that does nothing. """
 
-    def __init__(self, sde, score_fn, snr):
+    def __init__(self, sde: sde_lib.SDE, score_fn: Callable, snr: float):
         super().__init__(sde, score_fn, snr)
 
-    def update(self, batch: tuple[torch.Tensor, ...], t):
+    def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         x = batch[0]
         return x, x
 

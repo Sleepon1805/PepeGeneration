@@ -6,17 +6,17 @@ from lightning.pytorch.callbacks import (
     ModelCheckpoint,
     LearningRateMonitor,
     ModelSummary,
-    RichModelSummary
+    RichModelSummary,
 )
-from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-from lightning.pytorch.profilers import AdvancedProfiler
 from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
+from config import Paths, Config
 from data.dataset import PepeDataset
 from data.parse_dataset import DataParser
 from model.pepe_generator import PepeGenerator
-from config import Paths, Config
-from progress_bar import progress_bar, USE_RICH_PROGRESS_BAR
+from utils.progress_bar import progress_bar, USE_RICH_PROGRESS_BAR
+
 
 if __name__ == '__main__':
     # don't forget to override environment variable HSA_OVERRIDE_GFX_VERSION=10.3.0 (for radeon rx 6700xt)
@@ -92,6 +92,7 @@ if __name__ == '__main__':
         log_every_n_steps=1,
         logger=logger,
         precision=cfg.training_config.precision,
+        enable_model_summary=False,  # since we already have callback
         # profiler=AdvancedProfiler(filename='profiler'),
         # num_sanity_val_steps=0,
         # limit_train_batches=100,
