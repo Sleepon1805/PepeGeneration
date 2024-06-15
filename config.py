@@ -3,21 +3,20 @@ import os
 import git
 import yaml
 import dacite
-from typing import Tuple, Literal
+from enum import Enum
 from pathlib import Path
+from typing import Tuple, Literal
 from dataclasses import dataclass, asdict, field
 
 from data.condition_utils import CONDITION_SIZE
-from SDE_sampling.sde_lib import SDEName
-from SDE_sampling.predictors_correctors import PredictorName, CorrectorName
 
 
 # use either rich or tqdm progress bars
-os.environ["USE_RICH_PROGRESS_BAR"] = "True"
+USE_RICH_PROGRESS_BAR = True
 # enable jax type checks during runtime
-os.environ["RUNTIME_TYPECHECKS"] = "True"
+RUNTIME_TYPECHECKS = True
 # highres image size multiplier
-os.environ["HIGHRES_IMAGE_SIZE_MULT"] = "4"
+HIGHRES_IMAGE_SIZE_MULT = 4
 
 
 def curr_git_hash():
@@ -68,6 +67,11 @@ class ModelConfig:
 
 @dataclass
 class SDEConfig:
+    class SDEName(Enum):
+        VESDE = 'VESDE'
+        VPSDE = 'VPSDE'
+        subVPSDE = 'subVPSDE'
+
     sde_name: SDEName = SDEName.VPSDE
     num_scales: int = 1000
     schedule_param_start: float = 0.1  # beta_0 = 0.1 for VPSDE, subVPSDE; sigma_min = 0.01 for VESDE
@@ -76,6 +80,17 @@ class SDEConfig:
 
 @dataclass
 class PredictorCorrectorConfig:
+    class PredictorName(Enum):
+        EULER_MARUYAMA = 'EulerMaruyamaPredictor'
+        REVERSE_DIFFUSION = 'ReverseDiffusionPredictor'
+        ANCESTRAL_SAMPLING = 'AncestralSamplingPredictor'
+        NONE = 'NonePredictor'
+
+    class CorrectorName(Enum):
+        LANGEVIN = 'LangevinCorrector'
+        ANNEALED_LANGEVIN = 'AnnealedLangevinDynamics'
+        NONE = 'NoneCorrector'
+
     # predictor params
     predictor_name: PredictorName = PredictorName.EULER_MARUYAMA
     probability_flow: bool = False

@@ -1,6 +1,6 @@
 """ Abstract SDE classes, Reverse SDE, and VE/VP SDEs. """
+import sys
 import torch
-from enum import Enum
 from typing import Callable, Tuple
 from abc import abstractmethod
 
@@ -228,13 +228,11 @@ class VESDE(SDE):
         return f, G
 
 
-class SDEName(Enum):
-    VESDE = VESDE
-    VPSDE = VPSDE
-    subVPSDE = subVPSDE
-
-
-def get_sde(sde_name: SDEName, schedule_param_start: float, schedule_param_end: float, num_scales: int) -> SDE:
-    sde_instance = sde_name.value
+def get_sde(sde_name: str, schedule_param_start: float, schedule_param_end: float, num_scales: int) -> SDE:
+    try:
+        # get class name from string
+        sde_instance = getattr(sys.modules[__name__], sde_name)
+    except AttributeError:
+        raise ValueError(f"SDE {sde_name} not found.")
     sde = sde_instance(schedule_param_start, schedule_param_end, num_scales)
     return sde

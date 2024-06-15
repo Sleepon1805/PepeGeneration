@@ -1,4 +1,3 @@
-import os
 from tqdm import tqdm
 from typing import Collection
 from typing_extensions import override
@@ -8,8 +7,7 @@ from lightning.pytorch.callbacks import (
 )
 from rich import progress
 
-
-USE_RICH_PROGRESS_BAR = bool(os.environ.get("USE_RICH_PROGRESS_BAR", False))
+from config import USE_RICH_PROGRESS_BAR
 
 
 class CustomTQDMProgressBar(TQDMProgressBar):

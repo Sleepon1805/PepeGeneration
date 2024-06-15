@@ -1,5 +1,5 @@
+import sys
 import torch
-from enum import Enum
 from typing import Callable, Tuple
 from abc import abstractmethod
 
@@ -199,28 +199,23 @@ class NoneCorrector(Corrector):
         return x, x
 
 
-class PredictorName(Enum):
-    NONE = NonePredictor
-    EULER_MARUYAMA = EulerMaruyamaPredictor
-    REVERSE_DIFFUSION = ReverseDiffusionPredictor
-    ANCESTRAL_SAMPLING = AncestralSamplingPredictor
-
-
-class CorrectorName(Enum):
-    NONE = NoneCorrector
-    LANGEVIN = LangevinCorrector
-    ANNEALED_LANGEVIN_DYNAMICS = AnnealedLangevinDynamics
-
-
 def get_predictor(
-        predictor_name: PredictorName, sde: sde_lib.SDE, score_fn: Callable, probability_flow: bool
+        predictor_name: str, sde: sde_lib.SDE, score_fn: Callable, probability_flow: bool
 ) -> Predictor:
-    predictor_instance = predictor_name.value
+    try:
+        # get class name from string
+        predictor_instance = getattr(sys.modules[__name__], predictor_name)
+    except AttributeError:
+        raise ValueError(f"Predictor {predictor_name} not found.")
     return predictor_instance(sde, score_fn, probability_flow)
 
 
 def get_corrector(
-        corrector_name: CorrectorName, sde: sde_lib.SDE, score_fn: Callable, snr: float
+        corrector_name: str, sde: sde_lib.SDE, score_fn: Callable, snr: float
 ) -> Corrector:
-    corrector_instance = corrector_name.value
+    try:
+        # get class name from string
+        corrector_instance = getattr(sys.modules[__name__], corrector_name)
+    except AttributeError:
+        raise ValueError(f"Corrector {corrector_name} not found.")
     return corrector_instance(sde, score_fn, snr)

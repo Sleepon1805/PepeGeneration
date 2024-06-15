@@ -1,16 +1,15 @@
-import os
 import abc
 import torch
 from typing import Tuple
 from jaxtyping import Float, Float32, jaxtyped
 from beartype import beartype
 
+from config import RUNTIME_TYPECHECKS
+
 """
 Docs for jaxtyping:
 https://docs.kidger.site/jaxtyping/
 """
-
-RUNTIME_TYPECHECKS = bool(os.environ.get("RUNTIME_TYPECHECKS", False))
 
 
 # torch.Tensor of dtype float32 and shape (num_images, num_channels, img_size, img_size)
@@ -32,18 +31,20 @@ def typecheck(func):
     :param func:
     :return:
     """
-    typechecker = beartype if RUNTIME_TYPECHECKS else None
-    result = jaxtyped(func, typechecker=typechecker)
+    result = jaxtyped(func, typechecker=beartype)
     return result
 
 
 class _TypeCheckedMetaClass(type):
     def __new__(cls, name, bases, local):
+        if not RUNTIME_TYPECHECKS:
+            return super().__new__(cls, name, bases, local)
+
         for attr in local:
             value = local[attr]
             if callable(value):
                 local[attr] = typecheck(value)
-        return type.__new__(cls, name, bases, local)
+        return super().__new__(cls, name, bases, local)
 
 
 class TypeChecked(metaclass=_TypeCheckedMetaClass):
@@ -55,6 +56,9 @@ class TypeChecked(metaclass=_TypeCheckedMetaClass):
 
 class _ABCTypeCheckedMetaClass(abc.ABCMeta):
     def __new__(cls, name, bases, local):
+        if not RUNTIME_TYPECHECKS:
+            return super().__new__(cls, name, bases, local)
+
         super().__new__(cls, name, bases, local)
         for attr in local:
             value = local[attr]

@@ -122,15 +122,20 @@ def calculate_fid_loss(gen_samples, config: Config, device: str):
 
 
 if __name__ == '__main__':
-    version = 17
+    version = 12
     dataset_name = 'celeba'
-    ckpt = Path(f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/last.ckpt')
+    ckpt_identifier = 'epoch=00'  # 'last' or 'epoch=00'
+    ckpt = next(
+        Path(
+            f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/'
+        ).rglob(f'*{ckpt_identifier}*.ckpt')  # glob search for checkpoint for specific epoch
+    )
 
     inference(
         ckpt,
         condition=None,
         grid_shape=(2, 2),
-        calculate_metrics=True,
+        calculate_metrics=False,
         save_images=False,
         on_gpu=True,
         seed=137,
