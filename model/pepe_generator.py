@@ -115,8 +115,9 @@ class PepeGenerator(LightningModule):
         if not self.training_config.calculate_fid:
             num_images = min(batch[0].shape[0], grid_size[0] * grid_size[1])
             batch[0] = batch[0][:num_images]
+            batch[1] = batch[1][:num_images]
 
-        gen_samples = self.sampler.generate_samples(self, batch)
+        gen_samples = self.sampler.generate_samples(self, tuple(batch))
 
         # images
         images = self.sampler.generated_samples_to_images(gen_samples, grid_size)

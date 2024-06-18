@@ -64,8 +64,8 @@ class PC_Sampler(Sampler):
     def denoise_step(self, model: LightningModule, batch: BatchType, t: BatchedFloatType) -> TrainImagesType:
         x, *labels = batch
 
-        x, x_mean = self.predictor.update(batch, t.repeat(x.shape[0]))
+        x, x_mean = self.predictor.update(batch, t)
         for _ in range(self.num_corrector_steps):
-            x, x_mean = self.corrector.update((x, *labels), t.repeat(x.shape[0]))
+            x, x_mean = self.corrector.update((x, *labels), t)
         out = x_mean if self.denoise else x
         return out

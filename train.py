@@ -95,7 +95,7 @@ if __name__ == '__main__':
         enable_model_summary=False,  # since we already have callback
         # profiler=AdvancedProfiler(filename='profiler'),
         # num_sanity_val_steps=0,
-        # limit_train_batches=100,
+        # limit_train_batches=50,
         # limit_val_batches=20,
     )
 

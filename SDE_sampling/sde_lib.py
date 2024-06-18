@@ -24,7 +24,7 @@ class SDE(ABCTypeChecked):
         self.eps = eps
 
     @abstractmethod
-    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         """
         Get current drift and diffusion for X and t (vectorized).
         :param batch:
@@ -34,7 +34,7 @@ class SDE(ABCTypeChecked):
         pass
 
     @abstractmethod
-    def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         """
         Noise image(s) x_0 to timestep t: $p_t(x)$
         :param x_0: Images
@@ -79,7 +79,7 @@ class ReverseSDE(SDE):
         self.score_fn = score_fn
         self.probability_flow = probability_flow
 
-    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         drift, diffusion = self.forward_sde.get_sde(batch, t)
         score = self.score_fn(batch, t)
         drift = drift - diffusion[:, None, None, None] ** 2 * score * (0.5 if self.probability_flow else 1.)
@@ -87,7 +87,7 @@ class ReverseSDE(SDE):
         diffusion *= (1 - self.probability_flow)
         return drift, diffusion
 
-    def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         return self.forward_sde.marginal_prob(x_0, t)
 
     def prior_sampling(self, shape: Tuple) -> TrainImagesType:
@@ -120,7 +120,7 @@ class VPSDE(SDE):
         self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
         self.sqrt_1m_alphas_cumprod = torch.sqrt(1. - self.alphas_cumprod)
 
-    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         drift = -0.5 * beta_t[:, None, None, None] * x
@@ -168,7 +168,7 @@ class subVPSDE(SDE):
         self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
         self.sqrt_1m_alphas_cumprod = torch.sqrt(1. - self.alphas_cumprod)
 
-    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         drift = -0.5 * beta_t[:, None, None, None] * x
@@ -176,7 +176,7 @@ class subVPSDE(SDE):
         diffusion = (beta_t * discount) ** 0.5
         return drift, diffusion
 
-    def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         log_mean_coeff = -0.25 * t ** 2 * (self.beta_1 - self.beta_0) - 0.5 * t * self.beta_0
         mean = torch.exp(log_mean_coeff)[:, None, None, None] * x_0
         std = 1 - torch.exp(2. * log_mean_coeff)
@@ -197,18 +197,18 @@ class VESDE(SDE):
             N: number of discretization steps
         """
         super().__init__(N, T=1.0, eps=1e-5)
-        self.sigma_min = sigma_min
-        self.sigma_max = sigma_max
+        self.sigma_min = torch.tensor(sigma_min)
+        self.sigma_max = torch.tensor(sigma_max)
         self.discrete_sigmas = torch.exp(torch.linspace(torch.log(self.sigma_min), torch.log(self.sigma_max), N))
 
-    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
         sigma = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
         drift = torch.zeros_like(x)
         diffusion = sigma * (2 * (torch.log(self.sigma_max) - torch.log(self.sigma_min))) ** 0.5
         return drift, diffusion
 
-    def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         std = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
         mean = x_0
         return mean, std

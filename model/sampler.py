@@ -93,7 +93,7 @@ class Sampler(ABCTypeChecked):
         # Generate samples from denoising process
         for t in progress_bar(timesteps, desc=f"Generating {images_batch.shape[0]} images"):
             batch = (x, *labels)
-            x = self.denoise_step(model, batch, t)
+            x = self.denoise_step(model, batch, t.repeat(x.shape[0]))
         return x
 
     @staticmethod
