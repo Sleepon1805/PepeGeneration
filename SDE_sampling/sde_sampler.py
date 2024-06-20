@@ -14,7 +14,7 @@ class PC_Sampler(Sampler):
         super().__init__()
         self.model = model
         self.sde = get_sde(
-            config.sde_config.sde_name.value,
+            config.sde_config.sde_name,
             config.sde_config.schedule_param_start,
             config.sde_config.schedule_param_end,
             config.sde_config.num_scales
@@ -22,13 +22,13 @@ class PC_Sampler(Sampler):
         self.score_fn = self.get_score_fn()
 
         self.predictor = get_predictor(
-            config.pc_config.predictor_name.value,
+            config.pc_config.predictor_name,
             self.sde,
             self.score_fn,
             config.pc_config.probability_flow
         )
         self.corrector = get_corrector(
-            config.pc_config.corrector_name.value,
+            config.pc_config.corrector_name,
             self.sde,
             self.score_fn,
             config.pc_config.snr

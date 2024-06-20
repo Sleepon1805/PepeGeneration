@@ -43,7 +43,7 @@ class DataConfig:
 class TrainingConfig:
     batch_size: int = 32
     precision: str | int = 32
-    lr: float = 1e-3  # learning rate on training start
+    lr: float = 1e-4  # learning rate on training start
     dataset_split: Tuple[float, float] = (0.8, 0.2)
     scheduler: str = 'multisteplr'
     gradient_clip_algorithm: str = 'norm'
@@ -67,12 +67,9 @@ class ModelConfig:
 
 @dataclass
 class SDEConfig:
-    class SDEName(Enum):
-        VESDE = 'VESDE'
-        VPSDE = 'VPSDE'
-        subVPSDE = 'subVPSDE'
-
-    sde_name: SDEName = SDEName.VPSDE
+    sde_name: Literal[
+        'VESDE', 'VPSDE', 'subVPSDE'
+    ] = 'VPSDE'
     num_scales: int = 1000
     schedule_param_start: float = 0.1  # beta_0 = 0.1 for VPSDE, subVPSDE; sigma_min = 0.01 for VESDE
     schedule_param_end: float = 20.  # beta_1 = 20. for VPSDE, subVPSDE; sigma_max = 50. for VESDE
@@ -80,22 +77,21 @@ class SDEConfig:
 
 @dataclass
 class PredictorCorrectorConfig:
-    class PredictorName(Enum):
-        EULER_MARUYAMA = 'EulerMaruyamaPredictor'
-        REVERSE_DIFFUSION = 'ReverseDiffusionPredictor'
-        ANCESTRAL_SAMPLING = 'AncestralSamplingPredictor'
-        NONE = 'NonePredictor'
-
-    class CorrectorName(Enum):
-        LANGEVIN = 'LangevinCorrector'
-        ANNEALED_LANGEVIN = 'AnnealedLangevinDynamics'
-        NONE = 'NoneCorrector'
-
     # predictor params
-    predictor_name: PredictorName = PredictorName.EULER_MARUYAMA
+    predictor_name: Literal[
+        'EulerMaruyamaPredictor',
+        'ReverseDiffusionPredictor',
+        'AncestralSamplingPredictor',
+        'NonePredictor'
+    ] = 'EulerMaruyamaPredictor'
     probability_flow: bool = False
+
     # corrector params
-    corrector_name: CorrectorName = CorrectorName.NONE
+    corrector_name: Literal[
+        'LangevinCorrector',
+        'AnnealedLangevinDynamics',
+        'NoneCorrector'
+    ] = 'NoneCorrector'
     snr: float = 0.01
 
 

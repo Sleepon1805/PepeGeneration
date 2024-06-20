@@ -9,6 +9,7 @@ from model.pepe_generator import PepeGenerator
 from data.condition_utils import encode_condition
 from config import Paths, Config, load_config, CONDITION_SIZE
 from utils.progress_bar import progress_bar
+from utils.typings import TrainImagesType, BatchedFloatType, BatchType
 
 
 def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_metrics=False,
@@ -58,14 +59,14 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_met
 def load_model_and_config(checkpoint: Path | str, device: str) -> (PepeGenerator, Config):
     config = load_config(checkpoint, path_to_checkpoint=True)
 
-    model = PepeGenerator.load_from_checkpoint(checkpoint, config=config, strict=False)
+    model = PepeGenerator.load_from_checkpoint(checkpoint, config=config, strict=True)
     model.eval(), model.freeze(), model.to(device)
 
     print(f'Loaded model from {checkpoint}')
     return model, config
 
 
-def create_input_batch(condition, num_samples, config: Config):
+def create_input_batch(condition, num_samples: int, config: Config) -> BatchType:
     data_config = config.data_config
     if condition is None:
         try:
@@ -78,7 +79,7 @@ def create_input_batch(condition, num_samples, config: Config):
                 val_set, batch_size=num_samples, pin_memory=True, num_workers=0
             )
             batch = next(iter(dataloader))
-            return batch
+            return tuple(batch)
         except AssertionError:
             print('Simulating input batch and condition with zeros')
             fake_image_batch = torch.zeros((num_samples, 3, data_config.image_size, data_config.image_size))
@@ -124,7 +125,7 @@ def calculate_fid_loss(gen_samples, config: Config, device: str):
 if __name__ == '__main__':
     version = 12
     dataset_name = 'celeba'
-    ckpt_identifier = 'epoch=00'  # 'last' or 'epoch=00'
+    ckpt_identifier = 'epoch=02'  # 'last' or 'epoch=xx'
     ckpt = next(
         Path(
             f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/'
