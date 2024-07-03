@@ -5,15 +5,19 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 from data.dataset import PepeDataset
-from model.pepe_generator import PepeGenerator
+from model.pepe_generator import PepeGenerator, PC_Sampler
 from data.condition_utils import encode_condition
-from config import Paths, Config, load_config, CONDITION_SIZE
 from utils.progress_bar import progress_bar
-from utils.typings import TrainImagesType, BatchedFloatType, BatchType
+from utils.typings import BatchType
+from config import (
+    Paths, Config, load_config,
+    PCSamplerConfig, SDEConfig, PredictorCorrectorConfig,
+    CONDITION_SIZE
+)
 
 
-def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_metrics=False,
-              save_images=True, on_gpu=True, seed=42):
+def inference(checkpoint: Path, sampler_config=None, condition=None, grid_shape=(4, 4),
+              calculate_metrics=False, save_images=True, on_gpu=True, seed=42):
     folder_to_save = checkpoint.parents[1].joinpath('results/')
     if save_images and not os.path.exists(folder_to_save):
         os.makedirs(folder_to_save)
@@ -21,6 +25,11 @@ def inference(checkpoint: Path, condition=None, grid_shape=(4, 4), calculate_met
     device = 'cuda' if (on_gpu and torch.cuda.is_available()) else 'cpu'
 
     model, config = load_model_and_config(checkpoint, device)
+
+    if sampler_config is not None:
+        config.sampler_config = sampler_config
+        model.sampler = PC_Sampler(model, config.sampler_config)
+        model.sampler.to(device)
 
     # get fake batch with zero'ed images and encoded condition
     fake_batch = create_input_batch(condition, grid_shape[0] * grid_shape[1], config)
@@ -123,17 +132,35 @@ def calculate_fid_loss(gen_samples, config: Config, device: str):
 
 
 if __name__ == '__main__':
-    version = 12
+    version = 15
     dataset_name = 'celeba'
-    ckpt_identifier = 'epoch=02'  # 'last' or 'epoch=xx'
+    ckpt_identifier = 'last'  # 'last' or 'epoch=xx'
     ckpt = next(
         Path(
             f'./lightning_logs/{dataset_name}/version_{version}/checkpoints/'
         ).rglob(f'*{ckpt_identifier}*.ckpt')  # glob search for checkpoint for specific epoch
     )
 
+    sampling_config = PCSamplerConfig(
+        sde_config=SDEConfig(
+            sde_name='VESDE',
+            schedule_param_start=0.01,
+            schedule_param_end=50.,
+            num_scales=1000,
+        ),
+        pc_config=PredictorCorrectorConfig(
+            predictor_name='EulerMaruyamaPredictor',
+            probability_flow=False,
+            corrector_name='NoneCorrector',
+            snr=0.01,
+        ),
+        denoise=False,
+        num_corrector_steps=5,
+    )
+
     inference(
         ckpt,
+        sampler_config=sampling_config,
         condition=None,
         grid_shape=(2, 2),
         calculate_metrics=False,
