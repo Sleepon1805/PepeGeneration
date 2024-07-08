@@ -44,14 +44,15 @@ class SDE(ABCTypeChecked):
         # TODO: use Eq. (5.50), (5.51) in Särkkä & Solin (2019): Applied Stochastic Differential Equations
         pass
 
-    @abstractmethod
     def prior_sampling(self, shape: Tuple) -> TrainImagesType:
         """
         Generate one sample from the prior distribution: $p_T(X)$ (which should not depend on X).
         :param shape: shape of the sample
         :return: sample from the prior distribution
         """
-        pass
+        std = self.marginal_prob(torch.zeros(shape), torch.ones(shape[0]) * self.T)[1]
+        p_t = torch.randn(shape) * std[:, None, None, None]
+        return p_t
 
     def discretize(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         """
@@ -90,15 +91,6 @@ class ReverseSDE(SDE):
     def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         return self.forward_sde.marginal_prob(x_0, t)
 
-    def prior_sampling(self, shape: Tuple) -> TrainImagesType:
-        return self.forward_sde.prior_sampling(shape)
-
-    def discretize(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
-        f, G = self.forward_sde.discretize(batch, t)
-        rev_f = f - G[:, None, None, None] ** 2 * self.score_fn(batch, t) * (0.5 if self.probability_flow else 1.)
-        rev_G = torch.zeros_like(G) if self.probability_flow else G
-        return rev_f, rev_G
-
 
 class VPSDE(SDE):
     def __init__(self, beta_min=0.1, beta_max=20., N=1000):
@@ -114,12 +106,6 @@ class VPSDE(SDE):
         self.beta_0 = beta_min
         self.beta_1 = beta_max
 
-        self.discrete_betas = torch.linspace(beta_min / N, beta_max / N, N)
-        self.alphas = 1. - self.discrete_betas
-        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
-        self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
-        self.sqrt_1m_alphas_cumprod = torch.sqrt(1. - self.alphas_cumprod)
-
     def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
@@ -132,20 +118,6 @@ class VPSDE(SDE):
         mean = torch.exp(log_mean_coeff[:, None, None, None]) * x_0
         std = torch.sqrt(1. - torch.exp(2. * log_mean_coeff))
         return mean, std
-
-    def prior_sampling(self, shape: Tuple) -> TrainImagesType:
-        return torch.randn(*shape)
-
-    def discretize(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
-        """ DDPM discretization. """
-        x = batch[0]
-        timestep = (t * (self.N - 1) / self.T).long()
-        beta = self.discrete_betas.to(x.device)[timestep]
-        alpha = self.alphas.to(x.device)[timestep]
-        sqrt_beta = torch.sqrt(beta)
-        f = torch.sqrt(alpha)[:, None, None, None] * x - x
-        G = sqrt_beta
-        return f, G
 
 
 class subVPSDE(SDE):
@@ -162,17 +134,11 @@ class subVPSDE(SDE):
         self.beta_0 = beta_min
         self.beta_1 = beta_max
 
-        self.discrete_betas = torch.linspace(beta_min / N, beta_max / N, N)
-        self.alphas = 1. - self.discrete_betas
-        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
-        self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
-        self.sqrt_1m_alphas_cumprod = torch.sqrt(1. - self.alphas_cumprod)
-
     def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         drift = -0.5 * beta_t[:, None, None, None] * x
-        discount = 1. - torch.exp(-2 * self.beta_0 * t - (self.beta_1 - self.beta_0) * t ** 2).item()
+        discount = 1. - torch.exp(-2 * self.beta_0 * t - (self.beta_1 - self.beta_0) * t ** 2)
         diffusion = (beta_t * discount) ** 0.5
         return drift, diffusion
 
@@ -181,9 +147,6 @@ class subVPSDE(SDE):
         mean = torch.exp(log_mean_coeff)[:, None, None, None] * x_0
         std = 1 - torch.exp(2. * log_mean_coeff)
         return mean, std
-
-    def prior_sampling(self, shape: Tuple) -> TrainImagesType:
-        return torch.randn(*shape)
 
 
 class VESDE(SDE):
@@ -212,20 +175,6 @@ class VESDE(SDE):
         std = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
         mean = x_0
         return mean, std
-
-    def prior_sampling(self, shape: Tuple) -> TrainImagesType:
-        return torch.randn(*shape) * self.sigma_max
-
-    def discretize(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
-        """ SMLD(NCSN) discretization. """
-        x = batch[0]
-        timestep = (t * (self.N - 1) / self.T).long()
-        sigma = self.discrete_sigmas.to(t.device)[timestep]
-        adjacent_sigma = torch.where(timestep == 0, torch.zeros_like(t),
-                                     self.discrete_sigmas.to(t.device)[timestep - 1])
-        f = torch.zeros_like(x)
-        G = torch.sqrt(sigma ** 2 - adjacent_sigma ** 2)
-        return f, G
 
 
 def get_sde(sde_name: str, schedule_param_start: float, schedule_param_end: float, num_scales: int) -> SDE:

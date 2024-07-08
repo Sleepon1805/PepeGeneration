@@ -143,10 +143,10 @@ if __name__ == '__main__':
 
     sampling_config = PCSamplerConfig(
         sde_config=SDEConfig(
-            sde_name='VESDE',
-            schedule_param_start=0.01,
-            schedule_param_end=50.,
-            num_scales=1000,
+            sde_name='VPSDE',
+            schedule_param_start=0.1,
+            schedule_param_end=20.,
+            num_scales=5000,
         ),
         pc_config=PredictorCorrectorConfig(
             predictor_name='EulerMaruyamaPredictor',
