@@ -1,6 +1,7 @@
 Used papers:
  - https://arxiv.org/abs/2006.11239
  - https://arxiv.org/abs/2011.13456
+ - https://arxiv.org/abs/2206.00364
 
 Used repos:
  - https://github.com/openai/improved-diffusion
@@ -10,6 +11,7 @@ Used repos:
 
 TODOs:
  - (?) fix hparams logging in tensorboard,
+ - fix early stopping,
  - collect a new Pepe dataset, train a Pepe generation model,
  - try bigger image size or train an upscaling model,
  - (?) use flash attention (https://github.com/Dao-AILab/flash-attention),
@@ -22,8 +24,8 @@ Last results:
 
 Celeba v11: unconditional
 
-![last_results_celeba_v1](docs/celeba/final_pred.png)
+![last_results_celeba](docs/celeba/final_pred.png)
 
 Pepe v6: unconditional
 
-![last_results_pepe_v6](docs/pepe/final_pred.png)
+![last_results_pepe](docs/pepe/final_pred.png)

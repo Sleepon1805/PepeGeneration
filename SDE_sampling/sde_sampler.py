@@ -38,6 +38,7 @@ class PC_Sampler(Sampler):
         self.num_corrector_steps = config.num_corrector_steps
 
     def get_score_fn(self) -> Callable:
+        # FIXME
         # Orig: https://github.com/yang-song/score_sde_pytorch/blob/cb1f359f4aadf0ff9a5e122fe8fffc9451fd6e44/models/utils.py#L129
         def score_fn(batch, t):
             std = self.sde.marginal_prob(torch.zeros_like(batch[0]), t)[1]

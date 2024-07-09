@@ -34,6 +34,15 @@ class SDE(ABCTypeChecked):
         pass
 
     @abstractmethod
+    def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
+        """
+        Get the parameter for the SDE at time t.
+        :param t: time steps
+        :return: parameter at time t
+        """
+        pass
+
+    @abstractmethod
     def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         """
         Noise image(s) x_0 to timestep t: $p_t(x)$
@@ -54,7 +63,7 @@ class SDE(ABCTypeChecked):
         p_t = torch.randn(shape) * std[:, None, None, None]
         return p_t
 
-    def discretize(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
+    def discretize(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         """
         Discretize the SDE in the form: x_{i+1} = x_i + f_i(x_i) + G_i z_i.
         Useful for reverse diffusion sampling and probabiliy flow sampling.
@@ -88,6 +97,9 @@ class ReverseSDE(SDE):
         diffusion *= (1 - self.probability_flow)
         return drift, diffusion
 
+    def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
+        return self.forward_sde.get_param(t)
+
     def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         return self.forward_sde.marginal_prob(x_0, t)
 
@@ -106,9 +118,12 @@ class VPSDE(SDE):
         self.beta_0 = beta_min
         self.beta_1 = beta_max
 
+    def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
+        return self.beta_0 + (self.beta_1 - self.beta_0) * (t / self.T)
+
     def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
-        beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
+        beta_t = self.get_param(t)
         drift = -0.5 * beta_t[:, None, None, None] * x
         diffusion = beta_t ** 0.5
         return drift, diffusion
@@ -134,9 +149,12 @@ class subVPSDE(SDE):
         self.beta_0 = beta_min
         self.beta_1 = beta_max
 
+    def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
+        return self.beta_0 + (self.beta_1 - self.beta_0) * (t / self.T)
+
     def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
-        beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
+        beta_t = self.get_param(t)
         drift = -0.5 * beta_t[:, None, None, None] * x
         discount = 1. - torch.exp(-2 * self.beta_0 * t - (self.beta_1 - self.beta_0) * t ** 2)
         diffusion = (beta_t * discount) ** 0.5
@@ -164,15 +182,18 @@ class VESDE(SDE):
         self.sigma_max = torch.tensor(sigma_max)
         self.discrete_sigmas = torch.exp(torch.linspace(torch.log(self.sigma_min), torch.log(self.sigma_max), N))
 
+    def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
+        self.sigma_min * (self.sigma_max / self.sigma_min) ** (t / self.T)
+
     def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
-        sigma = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
+        sigma = self.get_param(t)
         drift = torch.zeros_like(x)
         diffusion = sigma * (2 * (torch.log(self.sigma_max) - torch.log(self.sigma_min))) ** 0.5
         return drift, diffusion
 
     def marginal_prob(self, x_0: TrainImagesType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
-        std = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
+        std = self.get_param(t)
         mean = x_0
         return mean, std
 

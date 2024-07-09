@@ -66,7 +66,12 @@ class AncestralSamplingPredictor(Predictor):
         assert isinstance(self.sde, sde_lib.VESDE)
         x = batch[0]
         timestep = (t * (self.sde.N - 1) / self.sde.T).long()
-        sigma = self.sde.discrete_sigmas.to(t.device)[timestep]
+        discrete_sigmas = torch.exp(torch.linspace(
+            torch.log(self.sde.sigma_min),
+            torch.log(self.sde.sigma_max),
+            self.sde.N
+        ))
+        sigma = discrete_sigmas.to(t.device)[timestep]
         adjacent_sigma = torch.where(  # noqa
             timestep == 0, torch.zeros_like(t),
             self.sde.discrete_sigmas.to(t.device)[timestep - 1]
@@ -82,7 +87,8 @@ class AncestralSamplingPredictor(Predictor):
         assert isinstance(self.sde, sde_lib.VPSDE)
         x = batch[0]
         timestep = (t * (self.sde.N - 1) / self.sde.T).long()
-        beta = self.sde.discrete_betas.to(t.device)[timestep]
+        discrete_betas = torch.linspace(self.sde.beta_0 / self.sde.N, self.sde.beta_1 / self.sde.N, self.sde.N)
+        beta = discrete_betas.to(t.device)[timestep]
         score = self.score_fn(batch, t)
         x_mean = (x + beta[:, None, None, None] * score) / torch.sqrt(1. - beta)[:, None, None, None]
         # x_mean = (2 - torch.sqrt(1 - beta)[:, None, None, None]) * x + beta[:, None, None, None] * score
@@ -138,10 +144,12 @@ class LangevinCorrector(Corrector):
     def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         x = batch[0]
         if isinstance(self.sde, sde_lib.VPSDE) or isinstance(self.sde, sde_lib.subVPSDE):
-            timestep = (t * (self.sde.N - 1) / self.sde.T).long()
-            alpha = self.sde.alphas.to(t.device)[timestep]
-        else:
+            beta_t = self.sde.get_param(t)
+            alpha = 1. - beta_t / self.sde.N
+        elif isinstance(self.sde, sde_lib.VESDE):
             alpha = torch.ones_like(t)
+        else:
+            raise NotImplementedError(f"SDE class {self.sde.__class__.__name__} not yet supported.")
 
         grad = self.score_fn(batch, t)
         noise = torch.randn_like(x)
@@ -172,10 +180,12 @@ class AnnealedLangevinDynamics(Corrector):
         score_fn = self.score_fn
         target_snr = self.snr
         if isinstance(self.sde, sde_lib.VPSDE) or isinstance(self.sde, sde_lib.subVPSDE):
-            timestep = (t * (self.sde.N - 1) / self.sde.T).long()
-            alpha = self.sde.alphas.to(t.device)[timestep]
-        else:
+            beta_t = self.sde.get_param(t)
+            alpha = 1. - beta_t / self.sde.N
+        elif isinstance(self.sde, sde_lib.VESDE):
             alpha = torch.ones_like(t)
+        else:
+            raise NotImplementedError(f"SDE class {self.sde.__class__.__name__} not yet supported.")
 
         std = self.sde.marginal_prob(x, t)[1]
 
