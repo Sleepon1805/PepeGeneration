@@ -22,15 +22,22 @@ class UNetModel(LightningModule):
 
         if self.use_condition:
             print('Using condition in model')
-            self.time_embed_dim = self.init_channels
-            self.cond_embed_dim = self.init_channels * 3
-            self.embed_dim = self.time_embed_dim + self.cond_embed_dim
-            self.time_embed = TimeEmbedding(self.init_channels, self.time_embed_dim)
+            self.drift_embed_dim = self.init_channels
+            self.diffusion_embed_dim = self.init_channels
+            self.cond_embed_dim = self.init_channels * 2
+            self.embed_dim = self.drift_embed_dim + self.diffusion_embed_dim + self.cond_embed_dim
+
+            self.drift_embed = TimeEmbedding(self.init_channels, self.drift_embed_dim)
+            self.diffusion_embed = TimeEmbedding(self.init_channels, self.diffusion_embed_dim)
             self.condition_emb = ConditionEmbedding(self.init_channels, self.cond_embed_dim, CONDITION_SIZE)  # fixme
         else:
             print('Not using condition in model')
-            self.embed_dim = self.init_channels * 4
-            self.time_embed = TimeEmbedding(self.init_channels, self.embed_dim)
+            self.drift_embed_dim = self.init_channels * 2
+            self.diffusion_embed_dim = self.init_channels * 2
+            self.embed_dim = self.drift_embed_dim + self.diffusion_embed_dim
+
+            self.drift_embed = TimeEmbedding(self.init_channels, self.drift_embed_dim)
+            self.diffusion_embed = TimeEmbedding(self.init_channels, self.diffusion_embed_dim)
 
         # downsample layers
         self.init_conv = nn.Conv2d(self.in_channels, self.init_channels, 3, padding=1)
@@ -93,22 +100,24 @@ class UNetModel(LightningModule):
             nn.Conv2d(self.init_channels // 2, self.out_channels, 3, padding=1),
         )
 
-    def forward(self, x, timesteps, cond=None):
+    def forward(self, x, time_scales, cond=None):
         """
         Apply the model to an input batch.
 
         :param x: input - torch.Tensor with shape (B, C_color, H, W)
-        :param timesteps: a 1-D batch of timesteps - torch.Tensor with shape (B)
+        :param time_scales: two 1-D batches of time-dependent SDE scales - tuple of torch.Tensor with shape (B)
         :param cond: torch.Tensor with shape (B, C_cond)
         :return: output - torch.Tensor with shape (B, C_color, H, W)
         """
 
+        drift_scale, diffusion_scale = time_scales
+        drift_emb = self.drift_embed(drift_scale)
+        diffusion_emb = self.diffusion_embed(diffusion_scale)
         if self.use_condition:
-            time_emb = self.time_embed(timesteps)
             cond_emb = self.condition_emb(cond)
-            emb = torch.concat([time_emb, cond_emb], dim=-1)
+            emb = torch.concat([drift_emb, diffusion_emb, cond_emb], dim=-1)
         else:
-            emb = self.time_embed(timesteps)
+            emb = torch.concat([drift_emb, diffusion_emb], dim=-1)
 
         x = self.init_conv(x)
 

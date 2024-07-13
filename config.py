@@ -3,7 +3,6 @@ import os
 import git
 import yaml
 import dacite
-from enum import Enum
 from pathlib import Path
 from typing import Tuple, Literal
 from dataclasses import dataclass, asdict, field
@@ -14,7 +13,7 @@ from data.condition_utils import CONDITION_SIZE
 # use either rich or tqdm progress bars
 USE_RICH_PROGRESS_BAR = True
 # enable jax type checks during runtime
-RUNTIME_TYPECHECKS = True
+RUNTIME_TYPECHECKS = False
 # highres image size multiplier
 HIGHRES_IMAGE_SIZE_MULT = 4
 

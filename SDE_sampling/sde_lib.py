@@ -34,6 +34,16 @@ class SDE(ABCTypeChecked):
         pass
 
     @abstractmethod
+    def get_sde_scales(self, t: BatchedFloatType) -> Tuple[BatchedFloatType, BatchedFloatType] | None:
+        """
+        Get x-independent drift f(t) and diffusion g(t) for the sde of the form
+        x = f(t) * x * dt + g(t) * dW
+        :param t: time step
+        :return: f(t) and g(t)
+        """
+        pass
+
+    @abstractmethod
     def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
         """
         Get the parameter for the SDE at time t.
@@ -97,6 +107,9 @@ class ReverseSDE(SDE):
         diffusion *= (1 - self.probability_flow)
         return drift, diffusion
 
+    def get_sde_scales(self, t: BatchedFloatType) -> Tuple[BatchedFloatType, BatchedFloatType] | None:
+        return None
+
     def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
         return self.forward_sde.get_param(t)
 
@@ -120,6 +133,10 @@ class VPSDE(SDE):
 
     def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
         return self.beta_0 + (self.beta_1 - self.beta_0) * (t / self.T)
+
+    def get_sde_scales(self, t: BatchedFloatType) -> Tuple[BatchedFloatType, BatchedFloatType] | None:
+        beta_t = self.get_param(t)
+        return -0.5 * beta_t, beta_t ** 0.5
 
     def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
@@ -151,6 +168,11 @@ class subVPSDE(SDE):
 
     def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
         return self.beta_0 + (self.beta_1 - self.beta_0) * (t / self.T)
+
+    def get_sde_scales(self, t: BatchedFloatType) -> Tuple[BatchedFloatType, BatchedFloatType] | None:
+        beta_t = self.get_param(t)
+        discount = 1. - torch.exp(-2 * self.beta_0 * t - (self.beta_1 - self.beta_0) * t ** 2)
+        return -0.5 * beta_t, (beta_t * discount) ** 0.5
 
     def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]
@@ -184,6 +206,10 @@ class VESDE(SDE):
 
     def get_param(self, t: BatchedFloatType) -> BatchedFloatType:
         self.sigma_min * (self.sigma_max / self.sigma_min) ** (t / self.T)
+
+    def get_sde_scales(self, t: BatchedFloatType) -> Tuple[BatchedFloatType, BatchedFloatType] | None:
+        sigma = self.get_param(t)
+        return 0, sigma * (2 * (torch.log(self.sigma_max) - torch.log(self.sigma_min))) ** 0.5
 
     def get_sde(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, BatchedFloatType]:
         x = batch[0]

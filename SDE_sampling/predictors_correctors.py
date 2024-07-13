@@ -32,11 +32,11 @@ class EulerMaruyamaPredictor(Predictor):
 
     def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         x = batch[0]
-        dt = -1. / self.rsde.N
+        dt = 1. / self.rsde.N
         z = torch.randn_like(x)
         drift, diffusion = self.rsde.get_sde(batch, t)
-        x_mean = x + drift * dt
-        x = x_mean + diffusion[:, None, None, None] * (-dt) ** 0.5 * z
+        x_mean = x - drift * dt
+        x = x_mean + diffusion[:, None, None, None] * dt ** 0.5 * z
         return x, x_mean
 
 
@@ -144,7 +144,7 @@ class LangevinCorrector(Corrector):
     def update(self, batch: BatchType, t: BatchedFloatType) -> Tuple[TrainImagesType, TrainImagesType]:
         x = batch[0]
         if isinstance(self.sde, sde_lib.VPSDE) or isinstance(self.sde, sde_lib.subVPSDE):
-            beta_t = self.sde.get_param(t)
+            beta_t = self.sde.scale_param(t)
             alpha = 1. - beta_t / self.sde.N
         elif isinstance(self.sde, sde_lib.VESDE):
             alpha = torch.ones_like(t)
@@ -180,7 +180,7 @@ class AnnealedLangevinDynamics(Corrector):
         score_fn = self.score_fn
         target_snr = self.snr
         if isinstance(self.sde, sde_lib.VPSDE) or isinstance(self.sde, sde_lib.subVPSDE):
-            beta_t = self.sde.get_param(t)
+            beta_t = self.sde.scale_param(t)
             alpha = 1. - beta_t / self.sde.N
         elif isinstance(self.sde, sde_lib.VESDE):
             alpha = torch.ones_like(t)

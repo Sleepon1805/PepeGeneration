@@ -92,7 +92,10 @@ class PepeGenerator(LightningModule):
         else:
             raise ValueError
 
-        return self.model(x, t, cond=cond)
+        # drift and diffusion coefficients instead of time itself
+        time_scales = self.sampler.sde.get_sde_scales(t)
+
+        return self.model(x, time_scales, cond=cond)
 
     def _calculate_loss(self, batch):
         image_batch, *labels = batch
