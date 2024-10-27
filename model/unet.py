@@ -2,95 +2,120 @@ import torch
 import torch.nn as nn
 from lightning import LightningModule
 
-from model.modules import (ResBlock, Upsample, Downsample, AttentionBlock, SinTimestepEmbedding, NormalizationLayer)
-from config import ModelConfig, CONDITION_SIZE
+from model.modules import (ResBlock, Upsample, Downsample, AttentionBlock, NormalizationLayer)
+from config import ModelConfig
 
 
 class UNetModel(LightningModule):
     def __init__(self, model_config: ModelConfig, in_channels=3):
         super().__init__()
         self.init_channels = model_config.init_channels
+        self.emb_channels = model_config.embed_channels
         self.channel_mult = model_config.channel_mult
         self.conv_resample = model_config.conv_resample
         self.num_heads = model_config.num_heads
         self.dropout = model_config.dropout
-        self.use_condition = model_config.use_condition
 
         self.in_channels = in_channels
         self.model_channels = [mult * self.init_channels for mult in self.channel_mult]
         self.out_channels = 3
 
-        if self.use_condition:
-            print('Using condition in model')
-            self.drift_embed_dim = self.init_channels
-            self.diffusion_embed_dim = self.init_channels
-            self.cond_embed_dim = self.init_channels * 2
-            self.embed_dim = self.drift_embed_dim + self.diffusion_embed_dim + self.cond_embed_dim
-
-            self.drift_embed = TimeEmbedding(self.init_channels, self.drift_embed_dim)
-            self.diffusion_embed = TimeEmbedding(self.init_channels, self.diffusion_embed_dim)
-            self.condition_emb = ConditionEmbedding(self.init_channels, self.cond_embed_dim, CONDITION_SIZE)  # fixme
-        else:
-            print('Not using condition in model')
-            self.drift_embed_dim = self.init_channels * 2
-            self.diffusion_embed_dim = self.init_channels * 2
-            self.embed_dim = self.drift_embed_dim + self.diffusion_embed_dim
-
-            self.drift_embed = TimeEmbedding(self.init_channels, self.drift_embed_dim)
-            self.diffusion_embed = TimeEmbedding(self.init_channels, self.diffusion_embed_dim)
-
         # downsample layers
         self.init_conv = nn.Conv2d(self.in_channels, self.init_channels, 3, padding=1)
 
         self.downsample_0 = DownsampleLayer(
-            self.init_channels, self.embed_dim, self.model_channels[0],
-            self.dropout, self.num_heads, self.conv_resample,
-            use_attention=False, use_downsample=True,
+            in_channels=self.init_channels,
+            emb_channels=self.emb_channels,
+            out_channels=self.model_channels[0],
+            dropout=self.dropout,
+            num_heads=self.num_heads,
+            conv_resample=self.conv_resample,
+            use_attention=False,
+            use_downsample=True,
         )
         self.downsample_1 = DownsampleLayer(
-            self.model_channels[0], self.embed_dim, self.model_channels[1],
-            self.dropout, self.num_heads, self.conv_resample,
-            use_attention=False, use_downsample=True,
+            in_channels=self.model_channels[0],
+            emb_channels=self.emb_channels,
+            out_channels=self.model_channels[1],
+            dropout=self.dropout,
+            num_heads=self.num_heads,
+            conv_resample=self.conv_resample,
+            use_attention=False,
+            use_downsample=True,
         )
         self.downsample_2 = DownsampleLayer(
-            self.model_channels[1], self.embed_dim, self.model_channels[2],
-            self.dropout, self.num_heads, self.conv_resample,
-            use_attention=model_config.use_second_attention, use_downsample=True,
+            in_channels=self.model_channels[1],
+            emb_channels=self.emb_channels,
+            out_channels=self.model_channels[2],
+            dropout=self.dropout,
+            num_heads=self.num_heads,
+            conv_resample=self.conv_resample,
+            use_attention=model_config.use_second_attention,
+            use_downsample=True,
         )
         self.downsample_3 = DownsampleLayer(
-            self.model_channels[2], self.embed_dim, self.model_channels[3],
-            self.dropout, self.num_heads, self.conv_resample,
-            use_attention=True, use_downsample=False,
+            in_channels=self.model_channels[2],
+            emb_channels=self.emb_channels,
+            out_channels=self.model_channels[3],
+            dropout=self.dropout,
+            num_heads=self.num_heads,
+            conv_resample=self.conv_resample,
+            use_attention=True,
+            use_downsample=False,
         )
 
         # bottom of pyramid
-        self.bottom_block = PyramidBottomLayer(self.model_channels[3], self.embed_dim,
-                                               self.dropout, self.num_heads)
+        self.bottom_block = PyramidBottomLayer(
+            channels=self.model_channels[3],
+            emb_channels=self.emb_channels,
+            dropout=self.dropout,
+            num_heads=self.num_heads,
+        )
 
         # upsample layers
         self.upsample_3 = UpsampleLayer(
-            self.model_channels[3], self.embed_dim, self.model_channels[2],
+            in_channels=self.model_channels[3],
+            emb_channels=self.emb_channels,
+            out_channels=self.model_channels[2],
             sc_channels=(self.model_channels[3], self.model_channels[3], self.model_channels[2]),
-            dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
-            use_attention=True, use_upsample=True,
+            dropout=self.dropout,
+            num_heads=self.num_heads,
+            conv_resample=self.conv_resample,
+            use_attention=True,
+            use_upsample=True,
         )
         self.upsample_2 = UpsampleLayer(
-            self.model_channels[2], self.embed_dim, self.model_channels[1],
+            in_channels=self.model_channels[2],
+            emb_channels=self.emb_channels,
+            out_channels=self.model_channels[1],
             sc_channels=(self.model_channels[2], self.model_channels[2], self.model_channels[1]),
-            dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
-            use_attention=model_config.use_second_attention, use_upsample=True,
+            dropout=self.dropout,
+            num_heads=self.num_heads,
+            conv_resample=self.conv_resample,
+            use_attention=model_config.use_second_attention,
+            use_upsample=True,
         )
         self.upsample_1 = UpsampleLayer(
-            self.model_channels[1], self.embed_dim, self.model_channels[0],
+            in_channels=self.model_channels[1],
+            emb_channels=self.emb_channels,
+            out_channels=self.model_channels[0],
             sc_channels=(self.model_channels[1], self.model_channels[1], self.model_channels[0]),
-            dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
-            use_attention=False, use_upsample=True,
+            dropout=self.dropout,
+            num_heads=self.num_heads,
+            conv_resample=self.conv_resample,
+            use_attention=False,
+            use_upsample=True,
         )
         self.upsample_0 = UpsampleLayer(
-            self.model_channels[0], self.embed_dim, self.init_channels,
+            in_channels=self.model_channels[0],
+            emb_channels=self.emb_channels,
+            out_channels=self.init_channels,
             sc_channels=(self.model_channels[0], self.model_channels[0], self.init_channels),
-            dropout=self.dropout, num_heads=self.num_heads, conv_resample=self.conv_resample,
-            use_attention=False, use_upsample=False,
+            dropout=self.dropout,
+            num_heads=self.num_heads,
+            conv_resample=self.conv_resample,
+            use_attention=False,
+            use_upsample=False,
         )
 
         self.out = nn.Sequential(
@@ -100,25 +125,14 @@ class UNetModel(LightningModule):
             nn.Conv2d(self.init_channels // 2, self.out_channels, 3, padding=1),
         )
 
-    def forward(self, x, time_scales, cond=None):
+    def forward(self, x, emb):
         """
         Apply the model to an input batch.
 
         :param x: input - torch.Tensor with shape (B, C_color, H, W)
-        :param time_scales: two 1-D batches of time-dependent SDE scales - tuple of torch.Tensor with shape (B)
-        :param cond: torch.Tensor with shape (B, C_cond)
+        :param emb: encoded embedding of additional inputs - torch.Tensor with shape (B, C_emb)
         :return: output - torch.Tensor with shape (B, C_color, H, W)
         """
-
-        drift_scale, diffusion_scale = time_scales
-        drift_emb = self.drift_embed(drift_scale)
-        diffusion_emb = self.diffusion_embed(diffusion_scale)
-        if self.use_condition:
-            cond_emb = self.condition_emb(cond)
-            emb = torch.concat([drift_emb, diffusion_emb, cond_emb], dim=-1)
-        else:
-            emb = torch.concat([drift_emb, diffusion_emb], dim=-1)
-
         x = self.init_conv(x)
 
         down_0 = self.downsample_0(x, emb)
@@ -137,50 +151,6 @@ class UNetModel(LightningModule):
 
         out = self.out(up_0)
         return out
-
-
-class TimeEmbedding(nn.Module):
-    def __init__(self, model_channels, time_embed_dim):
-        super().__init__()
-
-        self.time_embedding = SinTimestepEmbedding(model_channels)
-        self.linear_0 = nn.Linear(model_channels, time_embed_dim)
-        self.silu = nn.SiLU()
-        self.linear_1 = nn.Linear(time_embed_dim, time_embed_dim)
-
-    def forward(self, x):
-        """
-        :param x: input - torch.Tensor with shape (B,)
-        :return: time embedding - torch.Tensor with shape (B, C_time)
-        """
-        x = self.time_embedding(x)
-        x = self.linear_0(x)
-        x = self.silu(x)
-        x = self.linear_1(x)
-        return x
-
-
-class ConditionEmbedding(nn.Module):
-    def __init__(self, model_channels, time_embed_dim, embedding_length=40):
-        super().__init__()
-
-        self.cond_embedding = nn.Linear(embedding_length, model_channels)
-        self.linear_0 = nn.Linear(model_channels, time_embed_dim)
-        self.linear_1 = nn.Linear(time_embed_dim, time_embed_dim)
-        self.silu = nn.SiLU()
-
-    def forward(self, x):
-        """
-        :param x: input - torch.Tensor with shape (B, emb_length)
-        :return: time embedding - torch.Tensor with shape (B, C_time)
-        """
-        x = self.cond_embedding(x)
-        x = self.silu(x)
-        x = self.linear_0(x)
-        x = self.silu(x)
-        x = self.linear_1(x)
-        x = self.silu(x)
-        return x
 
 
 class DownsampleLayer(nn.Module):
@@ -320,11 +290,10 @@ class UpsampleLayer(nn.Module):
 
 if __name__ == '__main__':
     from config import DataConfig
-    from lightning import Fabric
     from time import time
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    to_compile = True  # pytorch 2.0 feature
+    to_compile = False  # pytorch 2.0 feature
     batch_size = 32
     torch.set_float32_matmul_precision('high')
 

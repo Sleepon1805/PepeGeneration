@@ -132,7 +132,7 @@ def calculate_fid_loss(gen_samples, config: Config, device: str):
 
 
 if __name__ == '__main__':
-    version = 18
+    version = 23
     dataset_name = 'celeba'
     ckpt_identifier = 'last'  # 'last' or 'epoch=xx'
     ckpt = next(
@@ -151,7 +151,7 @@ if __name__ == '__main__':
         pc_config=PredictorCorrectorConfig(
             predictor_name='EulerMaruyamaPredictor',
             probability_flow=False,
-            corrector_name='LangevinCorrector',
+            corrector_name='NoneCorrector',
             snr=0.01,
         ),
         denoise=False,
@@ -161,10 +161,10 @@ if __name__ == '__main__':
     inference(
         ckpt,
         sampler_config=sampling_config,
-        condition=None,
+        condition=["Male", "Bald"],
         grid_shape=(4, 4),
         calculate_metrics=False,
-        save_images=False,
+        save_images=True,
         on_gpu=True,
         seed=137,
     )

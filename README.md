@@ -10,22 +10,17 @@ Used repos:
  - https://github.com/yang-song/score_sde_pytorch
 
 TODOs:
- - (?) fix hparams logging in tensorboard,
- - fix early stopping,
+ - find appropriate quality metric for generated images (used for early stopping and checkpointing),
  - collect a new Pepe dataset, train a Pepe generation model,
  - try bigger image size or train an upscaling model,
  - (?) use flash attention (https://github.com/Dao-AILab/flash-attention),
+ - (?) use deformable attention
  - visualise influence of condition on celeba generation,
- - implement conditional SDE Sampling,
- - implement generalized SDE Sampling,
- - try to use direct solution of SDE (i.e. Ornstein-Uhlenbeck)
+ - is it possible to train an SDE-invariant model? (https://arxiv.org/abs/2206.00364)
+
 
 Last results:
 
-Celeba v11: unconditional
+Celeba v11: unconditional, 64x64
 
 ![last_results_celeba](docs/celeba/final_pred.png)
-
-Pepe v6: unconditional
-
-![last_results_pepe](docs/pepe/final_pred.png)

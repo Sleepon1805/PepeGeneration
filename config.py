@@ -34,13 +34,13 @@ class Paths:
 @dataclass
 class DataConfig:
     dataset_name: Literal['celeba', 'pepe', 'twitch_emotes'] = 'celeba'
-    image_size: int = 64  # size of image NxN
+    image_size: int = 128  # size of image NxN
     condition_size: int = CONDITION_SIZE
 
 
 @dataclass
 class TrainingConfig:
-    batch_size: int = 32
+    batch_size: int = 16
     precision: str | int = 32
     lr: float = 1e-4  # learning rate on training start
     dataset_split: Tuple[float, float] = (0.8, 0.2)
@@ -53,13 +53,14 @@ class TrainingConfig:
 @dataclass
 class ModelConfig:
     # model params
-    init_channels: int = 128
+    init_channels: int = 64
+    embed_channels: int = 256  # init_channels * 4
     channel_mult: Tuple[int, int, int, int] = (1, 2, 4, 4)
     conv_resample: bool = True
     num_heads: int = 1
     dropout: float = 0.3
     use_second_attention: bool = True
-    use_condition: bool = False
+    use_condition: bool = True
     pretrained_ckpt: str | None = None
     # pretrained_ckpt: str = './lightning_logs/celeba/version_12/checkpoints/last.ckpt'
 
@@ -69,7 +70,7 @@ class SDEConfig:
     sde_name: Literal[
         'VESDE', 'VPSDE', 'subVPSDE'
     ] = 'VPSDE'
-    num_scales: int = 1000
+    num_scales: int = 2000
     schedule_param_start: float = 0.1  # beta_0 = 0.1 for VPSDE, subVPSDE; sigma_min = 0.01 for VESDE
     schedule_param_end: float = 20.  # beta_1 = 20. for VPSDE, subVPSDE; sigma_max = 50. for VESDE
 

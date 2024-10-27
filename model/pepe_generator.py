@@ -3,6 +3,7 @@ from lightning import LightningModule
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.inception import InceptionScore
 
+from model.embedding import EmbeddingModel
 from model.unet import UNetModel
 from SDE_sampling.sde_sampler import PC_Sampler
 from config import Config, save_config
@@ -15,8 +16,9 @@ class PepeGenerator(LightningModule):
         self.data_config = config.data_config
         self.training_config = config.training_config
 
-        self.sampler: PC_Sampler = PC_Sampler(self, config.sampler_config)
-        self.model = UNetModel(config.model_config)
+        self.sampler = PC_Sampler(self, config.sampler_config)
+        self.embedding_model = EmbeddingModel(config.model_config)
+        self.backbone_model = UNetModel(config.model_config)
 
         self.loss_func = torch.nn.MSELoss()
 
@@ -36,6 +38,40 @@ class PepeGenerator(LightningModule):
             torch.ones(self.training_config.batch_size),
         )
         self.save_hyperparameters(self.config.__dict__)
+
+    def forward(self, batch, t):
+        x, cond = batch
+
+        # drift and diffusion coefficients instead of time itself
+        time_scales = self.sampler.sde.get_sde_scales(t)
+
+        emb = self.embedding_model(*time_scales, cond)
+        output = self.backbone_model(x, emb)
+        return output
+
+    def training_step(self, batch, batch_idx):
+        loss = self._calculate_loss(batch)
+        self.log("train_loss", loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        loss = self._calculate_loss(batch)
+        self.log("val_loss", loss)
+
+        if batch_idx == 0 and self.global_step > 0:  # to skip sanity check
+            self.log_generated_images(batch)
+        return
+
+    def _calculate_loss(self, batch):
+        image_batch, *labels = batch
+        ts = self.sampler.sample_timesteps(image_batch.shape[0])
+        noised_image_batch, noise = self.sampler.noise_images(image_batch, ts)
+        noised_batch = (noised_image_batch, *labels)
+        output = self.forward(noised_batch, ts)
+        loss = self.loss_func(output, noise)
+        return loss
+
+    """ LightningModule methods """
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.training_config.lr)
@@ -61,50 +97,10 @@ class PepeGenerator(LightningModule):
         self.sampler.to(device)
         return self
 
-    def training_step(self, batch, batch_idx):
-        loss = self._calculate_loss(batch)
-        self.log("train_loss", loss)
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        loss = self._calculate_loss(batch)
-        self.log("val_loss", loss)
-
-        if batch_idx == 0 and self.global_step > 0:  # to skip sanity check
-            self.log_generated_images(batch)
-        return
-
     def on_train_start(self) -> None:
         # save hparams
         save_config(self.config, self.logger.log_dir)
         self.logger.log_hyperparams(self.config.__dict__)
-
-    def forward(self, batch, t):
-        x, *labels = batch
-
-        if len(labels) == 0:
-            # take random condition
-            cond = torch.bernoulli(
-                torch.full((x.shape[0], self.data_config.condition_size), 0.5, device=self.device)
-            ) * 2 - 1
-        elif len(labels) == 1:
-            cond = labels[0]
-        else:
-            raise ValueError
-
-        # drift and diffusion coefficients instead of time itself
-        time_scales = self.sampler.sde.get_sde_scales(t)
-
-        return self.model(x, time_scales, cond=cond)
-
-    def _calculate_loss(self, batch):
-        image_batch, *labels = batch
-        ts = self.sampler.sample_timesteps(image_batch.shape[0])
-        noised_image_batch, noise = self.sampler.noise_images(image_batch, ts)
-        noised_batch = (noised_image_batch, *labels)
-        output = self.forward(noised_batch, ts)
-        loss = self.loss_func(output, noise)
-        return loss
 
     """
     Methods for evaluation
