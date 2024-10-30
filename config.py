@@ -11,7 +11,7 @@ from data.condition_utils import CONDITION_SIZE
 
 
 # use either rich or tqdm progress bars
-USE_RICH_PROGRESS_BAR = True
+USE_RICH_PROGRESS_BAR = False
 # enable jax type checks during runtime
 RUNTIME_TYPECHECKS = False
 # highres image size multiplier

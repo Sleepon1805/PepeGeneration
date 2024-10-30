@@ -46,13 +46,13 @@ if __name__ == '__main__':
         train_set,
         batch_size=cfg.training_config.batch_size,
         pin_memory=True, drop_last=True,
-        num_workers=0 if debug_mode else 12
+        num_workers=0
     )
     val_loader = torch.utils.data.DataLoader(
         val_set,
         batch_size=cfg.training_config.batch_size,
         pin_memory=True, drop_last=True,
-        num_workers=0 if debug_mode else 12
+        num_workers=0
     )
 
     # init or load pretrained model
